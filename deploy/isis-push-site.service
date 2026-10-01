@@ -1,0 +1,47 @@
+# Example systemd unit. Install as /etc/systemd/system/isis-push-site.service,
+# adjust the code path, then: systemctl daemon-reload && systemctl enable --now isis-push-site
+#
+# Everything the site writes (database) and reads privately (config, secrets,
+# VAPID key) lives in /var/lib/isis-push-site, owned by the pushsite user.
+
+[Unit]
+Description=ISIS Beam Monitor push notification site
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pushsite
+Group=pushsite
+# Where the push_site code is, e.g. the monitor's push_site submodule.
+WorkingDirectory=/opt/ISIS_Beam_Monitor/push_site
+ExecStart=/opt/ISIS_Beam_Monitor/push_site/.venv/bin/python -m push_site serve /var/lib/isis-push-site/push_site.ini
+Restart=on-failure
+RestartSec=5
+
+StateDirectory=isis-push-site
+StateDirectoryMode=0700
+UMask=0077
+
+# Sandboxing: the site only needs its state directory and outbound HTTPS.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+# Example Caddy site: HTTPS (certificates are automatic), in front of the
+# push site on localhost. The monitor daemon posts to /ingest directly on
+# 127.0.0.1:8765, so that path is never served publicly.
+push.example.org {
+	@ingest path /ingest /ingest/*
+	respond @ingest 404
+
+	request_body {
+		max_size 64KB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8765
+
+	# Optional rate limiting needs Caddy built with the caddy-ratelimit plugin
+	# (xcaddy build --with github.com/mholt/caddy-ratelimit). Tokens are 256-bit,
+	# so this only guards against load, not guessing.
+	# rate_limit {
+	# 	zone api {
+	# 		match {
+	# 			path /api/*
+	# 		}
+	# 		key {remote_host}
+	# 		events 60
+	# 		window 1m
+	# 	}
+	# }
+}
