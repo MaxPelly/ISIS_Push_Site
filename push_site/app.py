@@ -332,6 +332,7 @@ def create_app(config: Config, store: Store,
     app.router.add_put("/api/prefs", put_prefs)
     app.router.add_get("/api/topics", topics)
     app.router.add_get("/api/feed", feed)
+    app.router.add_get("/", _file("index.html", "text/html; charset=utf-8"))
     # At the root, so the service worker's scope covers the whole site.
     app.router.add_get("/sw.js", _file("sw.js", "text/javascript; charset=utf-8"))
     app.router.add_get("/manifest.webmanifest", _file("manifest.webmanifest", "application/manifest+json"))

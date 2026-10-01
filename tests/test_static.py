@@ -22,3 +22,13 @@ async def test_service_worker_is_served_from_the_root_uncached(site):
     assert resp.status == 200 and resp.content_type == "text/javascript"
     assert resp.headers["Cache-Control"] == "no-cache"
     assert "showNotification" in await resp.text()
+
+
+async def test_page_and_its_assets(site):
+    resp = await site.get("/")
+    assert resp.status == 200 and resp.content_type == "text/html"
+    html = await resp.text()
+    assert "<script>" not in html and "style=" not in html  # the CSP allows neither inline
+    for path, kind in (("/static/app.js", "application/javascript"), ("/static/app.css", "text/css")):
+        resp = await site.get(path)
+        assert resp.status == 200 and kind in resp.content_type.replace("text/javascript", "application/javascript")

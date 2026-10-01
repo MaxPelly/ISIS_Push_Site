@@ -1,0 +1,28 @@
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.45 system-ui, sans-serif; color: #1b1f24; background: #f4f6f9; }
+header { background: #102542; color: #fff; padding: 0.8rem 1rem; padding-top: max(0.8rem, env(safe-area-inset-top)); }
+h1 { margin: 0; font-size: 1.2rem; }
+h2 { font-size: 1.05rem; margin: 0 0 0.6rem; }
+main { max-width: 40rem; margin: 0 auto; padding: 0.8rem; }
+section, footer { background: #fff; border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 0.8rem; }
+fieldset { border: 1px solid #d5dbe3; border-radius: 6px; margin: 0 0 0.8rem; }
+fieldset label { display: block; padding: 0.2rem 0; }
+button { font: inherit; padding: 0.5rem 1rem; border: 0; border-radius: 6px; background: #1f6feb; color: #fff; cursor: pointer; }
+button.secondary { background: #d5dbe3; color: #1b1f24; }
+button.link { background: none; color: #1f6feb; padding: 0; text-decoration: underline; }
+.hint { color: #57606a; font-size: 0.9rem; }
+.message { background: #fff1e6; border-left: 4px solid #d1242f; padding: 0.6rem 0.8rem; border-radius: 6px; }
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed li { border-left: 4px solid #8c959f; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; background: #f8f9fb; border-radius: 4px; }
+.feed li.good { border-color: #1a7f37; }
+.feed li.warning { border-color: #bf8700; }
+.feed li.attention { border-color: #d1242f; }
+.feed li.focus { outline: 2px solid #1f6feb; }
+.feed .title { font-weight: 600; }
+.feed time { display: block; color: #57606a; font-size: 0.85rem; }
+.feed p { margin: 0.3rem 0; white-space: pre-line; }
+.feed .flavour { font-style: italic; color: #57606a; }
+.feed dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.1rem 0.8rem; margin: 0.3rem 0; font-size: 0.9rem; }
+.feed dt { color: #57606a; }
+.feed dd { margin: 0; overflow-wrap: anywhere; }

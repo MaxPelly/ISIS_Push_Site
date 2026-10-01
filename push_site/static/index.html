@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102542">
+  <title>ISIS Beam Monitor</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icon-192.png">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header><h1>ISIS Beam Monitor</h1></header>
+  <main>
+    <p id="message" class="message" role="alert" hidden></p>
+
+    <section id="join" hidden>
+      <h2>Join</h2>
+      <p id="join-text"></p>
+      <p id="join-ios" class="hint" hidden>On iPhone or iPad: join here first, then tap Share and
+        <em>Add to Home Screen</em>, and open the app from your Home Screen to turn on notifications.</p>
+      <button id="join-button" hidden>Join with this invite</button>
+    </section>
+
+    <div id="app" hidden>
+      <section>
+        <h2>Notifications on this device</h2>
+        <p id="push-status"></p>
+        <p id="install-help" class="hint" hidden>On iPhone and iPad, notifications only work from the Home
+          Screen app: tap Share, then <em>Add to Home Screen</em>, and open it from there.</p>
+        <button id="push-on" hidden>Turn on notifications</button>
+        <button id="push-off" class="secondary" hidden>Turn off notifications</button>
+      </section>
+
+      <section>
+        <h2>What to notify me about</h2>
+        <form id="prefs">
+          <fieldset id="topics"></fieldset>
+          <fieldset>
+            <legend>Quiet hours</legend>
+            <label><input type="checkbox" id="quiet-on"> Quiet from</label>
+            <input type="time" id="quiet-start" value="22:00" required> to
+            <input type="time" id="quiet-end" value="07:00" required>
+            <label><input type="checkbox" id="quiet-warnings" checked> Still send warnings</label>
+            <p id="quiet-tz" class="hint"></p>
+          </fieldset>
+          <button type="submit">Save</button>
+          <span id="prefs-status" class="hint" role="status"></span>
+        </form>
+      </section>
+
+      <section>
+        <h2>Recent notifications</h2>
+        <ol id="feed" class="feed"></ol>
+      </section>
+
+      <footer class="hint">
+        This device: <span id="label"></span>.
+        <button id="forget" class="link">Remove this device</button>
+      </footer>
+    </div>
+  </main>
+</body>
+</html>
