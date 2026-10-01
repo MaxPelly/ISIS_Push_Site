@@ -18,6 +18,12 @@ from push_site.push import Pusher, generate_vapid_key, load_vapid_key, public_ke
 from push_site.storage import Store
 
 
+def _log_worker_death(task: asyncio.Task) -> None:
+    if not task.cancelled() and task.exception():
+        logging.getLogger(__name__).error("The push worker stopped; nothing more will be pushed",
+                                          exc_info=task.exception())
+
+
 def build_app(config, store: Store) -> web.Application:
     """The app with its push worker running alongside it."""
     vapid = load_vapid_key(Path(config.vapid_key_file))
@@ -26,6 +32,7 @@ def build_app(config, store: Store) -> web.Application:
 
     async def run_pusher(app):
         task = asyncio.create_task(pusher.run())
+        task.add_done_callback(_log_worker_death)
         yield
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)

@@ -58,6 +58,8 @@ def test_push_payload_is_small_and_truncated():
     assert len(data["title"]) == 120 and data["title"].startswith("🔴 ")
     assert len(data["body"]) == 300 and data["body"].endswith("…")
     assert json.loads(push_payload(notification(text="short")))["body"] == "short"
+    # Multi-byte text stays well under Web Push's 4 KB (about 3993 bytes of plaintext).
+    assert len(push_payload(notification(title="😀" * 500, text="😀" * 1000, emoji="😀")).encode()) < 2000
 
 
 async def test_fan_out_sends_only_to_matching_devices(store, vapid):
@@ -83,6 +85,16 @@ async def test_each_push_gets_its_own_claims(store, vapid):
     claims = [c.kwargs["vapid_claims"] for c in send.await_args_list]
     assert len(claims) == 2 and claims[0] is not claims[1]
     assert send.await_args.kwargs["headers"] == {"Urgency": "normal"}
+
+
+async def test_one_devices_bad_prefs_dont_stop_the_others(store, vapid, caplog):
+    bad = add_device(store, "https://fcm.googleapis.com/a",
+                     quiet={"start": "22:00", "end": "07:00", "timezone": "Gone/Zone", "warnings_only": False})
+    add_device(store, "https://fcm.googleapis.com/b")
+    with patch.object(push, "webpush_async", new=AsyncMock()) as send:
+        await Pusher(store, vapid, SUBJECT).fan_out(MagicMock(), notification(severity="info"))
+    assert [c.args[0]["endpoint"] for c in send.await_args_list] == ["https://fcm.googleapis.com/b"]
+    assert f"Skipping device {bad}" in caplog.text
 
 
 async def test_signed_out_devices_get_nothing(store, vapid):

@@ -11,7 +11,8 @@ URGENT_SEVERITIES = ("warning", "attention")  # still sent in quiet hours set to
 
 
 def _hhmm(value: object) -> dtime:
-    if not (isinstance(value, str) and len(value) == 5 and value[2] == ":"):
+    if not (isinstance(value, str) and len(value) == 5 and value[2] == ":"
+            and (value[:2] + value[3:]).isascii() and (value[:2] + value[3:]).isdigit()):
         raise ValueError("times must be HH:MM")
     return dtime(int(value[:2]), int(value[3:]))
 

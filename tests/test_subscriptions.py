@@ -1,10 +1,20 @@
-import pytest
+import base64
 
-from push_site.app import push_endpoint_ok
+import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+
+from push_site.app import keys_ok, push_endpoint_ok
 from tests.helpers import api, signed_in
 
-P256DH = "B" + "x" * 86
-AUTH = "a" * 22
+
+def b64(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+POINT = ec.generate_private_key(ec.SECP256R1()).public_key().public_bytes(
+    serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+P256DH, AUTH = b64(POINT), b64(bytes(16))
 
 
 def subscription(endpoint="https://fcm.googleapis.com/fcm/send/abc", p256dh=P256DH, auth=AUTH):
@@ -58,6 +68,8 @@ async def test_subscription_goes_with_its_device(site):
     ("https://user@fcm.googleapis.com/x", False),
     ("https://127.0.0.1/x", False),
     ("https://[::1/x", False),
+    ("https://evil.com%2f.push.apple.com/x", False),
+    ("https://evil.com;.push.apple.com/x", False),
     ("https://fcm.googleapis.com/" + "x" * 1024, False),
     (5, False),
 ])
@@ -69,7 +81,9 @@ def test_only_push_service_endpoints_are_allowed(endpoint, ok):
     subscription("https://evil.example/x"),
     subscription(p256dh="short"),
     subscription(p256dh="B" + "<" * 86),
+    subscription(p256dh="B" + "x" * 86),  # right length, not a point on the curve
     subscription(auth=""),
+    subscription(auth=b64(bytes(15))),
     {"endpoint": "https://fcm.googleapis.com/fcm/send/abc"},
     {"endpoint": "https://fcm.googleapis.com/fcm/send/abc", "keys": []},
 ])
@@ -77,3 +91,11 @@ async def test_bad_subscriptions_are_refused(site, body):
     token = await signed_in(site)
     assert (await api(site, "PUT", "/api/subscription", body, token=token)).status == 400
     assert stored(site) == []
+
+
+def test_keys_must_be_usable():
+    assert keys_ok(P256DH, AUTH)
+    assert keys_ok(P256DH + "=", AUTH + "==")  # padding allowed
+    assert not keys_ok(P256DH[:-1], AUTH)
+    assert not keys_ok(b64(b"\x04" + bytes(64)), AUTH)
+    assert not keys_ok(P256DH, None)

@@ -63,7 +63,7 @@ def push_payload(notification: dict) -> str:
         "title": title[:MAX_TITLE],
         "body": body if len(body) <= MAX_BODY else body[:MAX_BODY - 1] + "…",
         "severity": notification["severity"],
-    })
+    }, ensure_ascii=False)  # escaped, each emoji would take 12 bytes of the 4 KB
 
 
 class Pusher:
@@ -99,7 +99,7 @@ class Pusher:
                     logger.exception(f"Pushing notification {notification['id']} failed")
 
     async def fan_out(self, session: aiohttp.ClientSession, notification: dict) -> None:
-        targets = [t for t in self.store.push_targets() if wants(t["prefs"], notification)]
+        targets = [t for t in self.store.push_targets() if self._wants(t, notification)]
         if not targets:
             return
         data = push_payload(notification)
@@ -108,9 +108,17 @@ class Pusher:
         results = await asyncio.gather(
             *(self._send(session, semaphore, t, data, urgency) for t in targets), return_exceptions=True
         )
-        for result in results:
+        for target, result in zip(targets, results):
             if isinstance(result, Exception):
-                logger.error(f"Push failed unexpectedly: {result!r}")
+                logger.error(f"Push to device {target['device_id']} failed unexpectedly: {result!r}")
+
+    @staticmethod
+    def _wants(target: dict, notification: dict) -> bool:
+        try:
+            return wants(target["prefs"], notification)
+        except Exception as exc:  # e.g. a timezone tzdata no longer knows; skip just this device
+            logger.warning(f"Skipping device {target['device_id']}: unusable preferences ({exc!r})")
+            return False
 
     async def _send(self, session, semaphore, target: dict, data: str, urgency: str) -> None:
         async with semaphore:

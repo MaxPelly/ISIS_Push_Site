@@ -1,4 +1,6 @@
 """The aiohttp application."""
+import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -9,6 +11,7 @@ from typing import Callable, Optional
 from urllib.parse import urlsplit
 
 from aiohttp import web
+from cryptography.hazmat.primitives.asymmetric import ec
 from aiohttp.web_protocol import RequestPayloadError
 
 from push_site.config import Config
@@ -46,6 +49,7 @@ TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{43}")  # secrets.token_urlsafe(32), as inv
 # so the site can't be made to send requests to arbitrary servers.
 PUSH_SERVICE_HOSTS = ("fcm.googleapis.com", ".push.apple.com", ".push.services.mozilla.com", ".notify.windows.com")
 _KEY_RE = re.compile(r"[A-Za-z0-9_-]+={0,2}")
+_HOST_RE = re.compile(r"[a-z0-9.-]+")
 
 CONFIG = web.AppKey("config", Config)
 VAPID_PUBLIC_KEY = web.AppKey("vapid_public_key", str)
@@ -216,12 +220,29 @@ def push_endpoint_ok(endpoint: object) -> bool:
     except ValueError:
         return False
     host = url.hostname or ""
-    return (url.scheme == "https" and "@" not in url.netloc and port in (None, 443)
+    return (url.scheme == "https" and bool(_HOST_RE.fullmatch(host)) and "@" not in url.netloc and port in (None, 443)
             and any(host == h or (h.startswith(".") and host.endswith(h)) for h in PUSH_SERVICE_HOSTS))
 
 
-def _key_ok(value: object, low: int, high: int) -> bool:
-    return isinstance(value, str) and low <= len(value) <= high and bool(_KEY_RE.fullmatch(value))
+def _decode_key(value: object) -> Optional[bytes]:
+    if not (isinstance(value, str) and len(value) <= 100 and _KEY_RE.fullmatch(value)):
+        return None
+    try:
+        return base64.urlsafe_b64decode(value.rstrip("=") + "=" * (-len(value.rstrip("=")) % 4))
+    except (binascii.Error, ValueError):
+        return None
+
+
+def keys_ok(p256dh: object, auth: object) -> bool:
+    """Whether a subscription's keys can be encrypted to: a P-256 point and a 16-byte secret."""
+    point, secret = _decode_key(p256dh), _decode_key(auth)
+    if point is None or secret is None or len(secret) != 16:
+        return False
+    try:
+        ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), point)
+    except ValueError:
+        return False
+    return True
 
 
 @signed_in
@@ -229,9 +250,7 @@ async def put_subscription(request: web.Request, device_id: int) -> web.Response
     """Save the browser's PushSubscription (as from its toJSON())."""
     data = await _json_object(request)
     keys = data.get("keys") if isinstance(data.get("keys"), dict) else {}
-    # p256dh is a 65-byte P-256 point and auth 16 bytes, both base64url.
-    if not (push_endpoint_ok(data.get("endpoint")) and _key_ok(keys.get("p256dh"), 80, 100)
-            and _key_ok(keys.get("auth"), 16, 32)):
+    if not (push_endpoint_ok(data.get("endpoint")) and keys_ok(keys.get("p256dh"), keys.get("auth"))):
         raise web.HTTPBadRequest(text="not a push subscription from a supported browser")
     request.app[STORE].set_subscription(device_id, data["endpoint"], keys["p256dh"], keys["auth"])
     return web.Response(status=204)

@@ -49,6 +49,8 @@ def test_quiet_hours_within_a_day():
     {"topics": ["x" * 65], "quiet": None}, {"topics": ["t"] * 201, "quiet": None},
     {"topics": [], "quiet": {**QUIET, "start": "7:00"}},
     {"topics": [], "quiet": {**QUIET, "start": "25:00"}},
+    {"topics": [], "quiet": {**QUIET, "start": "+1:00"}},
+    {"topics": [], "quiet": {**QUIET, "start": "٠١:00"}},
     {"topics": [], "quiet": {**QUIET, "end": "22:00"}},
     {"topics": [], "quiet": {**QUIET, "timezone": "Nowhere/City"}},
     {"topics": [], "quiet": {**QUIET, "timezone": "../../etc/passwd"}},
@@ -80,3 +82,12 @@ async def test_topics_and_feed_api(site):
     assert [n["id"] for n in feed] == ["2", "1"]
     assert (await api(site, "GET", "/api/feed?limit=lots", token=token)).status == 400
     assert len(await (await api(site, "GET", "/api/feed?limit=-5", token=token)).json()) == 0
+
+
+def test_quiet_hours_follow_the_clock_across_dst():
+    prefs = parse_prefs({"topics": ["TS1"], "quiet": {**QUIET, "warnings_only": False}})
+    n = {"topic": "TS1", "severity": "info"}
+    # 22:30 local both sides of the October change: UTC+1, then UTC+0.
+    assert not wants(prefs, n, datetime(2026, 10, 24, 21, 30, tzinfo=timezone.utc))
+    assert not wants(prefs, n, datetime(2026, 10, 25, 22, 30, tzinfo=timezone.utc))
+    assert wants(prefs, n, datetime(2026, 10, 25, 21, 30, tzinfo=timezone.utc))  # 21:30 GMT
