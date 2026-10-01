@@ -11,8 +11,8 @@ from typing import Callable, Optional
 from urllib.parse import urlsplit
 
 from aiohttp import web
-from cryptography.hazmat.primitives.asymmetric import ec
 from aiohttp.web_protocol import RequestPayloadError
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from push_site.config import Config
 from push_site.prefs import BASE_TOPICS, parse_prefs
@@ -92,6 +92,7 @@ def parse_notification(data: object) -> dict:
     if timestamp is not None and not isinstance(timestamp, str):
         raise ValueError("bad timestamp")
     n["timestamp"] = timestamp
+    json.dumps(n, ensure_ascii=False).encode()  # UnicodeEncodeError (a ValueError) on lone surrogates
     return n
 
 
