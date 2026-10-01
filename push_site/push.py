@@ -1,12 +1,27 @@
-"""Web Push: the site's VAPID key."""
+"""Web Push: the site's VAPID key, and sending notifications to subscribed devices."""
+import asyncio
 import base64
+import json
+import logging
 import os
 from pathlib import Path
 
+import aiohttp
 from cryptography.hazmat.primitives import serialization
 from py_vapid import Vapid02
+from pywebpush import WebPushException, webpush_async
 
 from push_site.config import ConfigError
+from push_site.prefs import URGENT_SEVERITIES, wants
+from push_site.storage import Store
+
+logger = logging.getLogger(__name__)
+
+QUEUE_SIZE = 100  # notifications waiting to be sent; the oldest is dropped when full
+CONCURRENCY = 10  # pushes in flight at once
+SEND_TIMEOUT = 10.0  # seconds per push request
+TTL = 3600  # how long a push service keeps trying an offline device, in seconds
+MAX_TITLE, MAX_BODY = 120, 300  # characters; keeps payloads well under Web Push's 4 KB
 
 
 def generate_vapid_key(path: Path) -> Vapid02:
@@ -36,3 +51,86 @@ def public_key(vapid: Vapid02) -> str:
     """The key browsers subscribe with (applicationServerKey), base64url."""
     raw = vapid.public_key.public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+def push_payload(notification: dict) -> str:
+    """What the service worker gets: enough to show the notification and
+    open its feed entry."""
+    title = f"{notification['emoji']} {notification['title']}".strip()
+    body = notification["text"]
+    return json.dumps({
+        "id": notification["id"],
+        "title": title[:MAX_TITLE],
+        "body": body if len(body) <= MAX_BODY else body[:MAX_BODY - 1] + "…",
+        "severity": notification["severity"],
+    })
+
+
+class Pusher:
+    """Sends each new notification to the devices that want it.
+
+    enqueue() never blocks or raises, so /ingest isn't held up; one worker
+    task (run()) sends them in order, CONCURRENCY pushes at a time.
+    """
+
+    def __init__(self, store: Store, vapid: Vapid02, subject: str):
+        try:  # py_vapid checks the subject when signing; fail at startup, not on every push
+            vapid.sign({"sub": subject, "aud": "https://push.example"})
+        except Exception as exc:
+            raise ConfigError(f"[SECRETS] vapid_subject {subject!r} isn't accepted for VAPID: {exc}")
+        self.store = store
+        self.vapid = vapid
+        self.subject = subject
+        self._queue: asyncio.Queue = asyncio.Queue(QUEUE_SIZE)
+
+    def enqueue(self, notification: dict) -> None:
+        if self._queue.full():
+            dropped = self._queue.get_nowait()
+            logger.warning(f"Push queue full; dropped notification {dropped['id']}")
+        self._queue.put_nowait(notification)
+
+    async def run(self) -> None:
+        async with aiohttp.ClientSession() as session:
+            while True:
+                notification = await self._queue.get()
+                try:
+                    await self.fan_out(session, notification)
+                except Exception:  # never let one bad notification stop the rest
+                    logger.exception(f"Pushing notification {notification['id']} failed")
+
+    async def fan_out(self, session: aiohttp.ClientSession, notification: dict) -> None:
+        targets = [t for t in self.store.push_targets() if wants(t["prefs"], notification)]
+        if not targets:
+            return
+        data = push_payload(notification)
+        urgency = "high" if notification["severity"] in URGENT_SEVERITIES else "normal"
+        semaphore = asyncio.Semaphore(CONCURRENCY)
+        results = await asyncio.gather(
+            *(self._send(session, semaphore, t, data, urgency) for t in targets), return_exceptions=True
+        )
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Push failed unexpectedly: {result!r}")
+
+    async def _send(self, session, semaphore, target: dict, data: str, urgency: str) -> None:
+        async with semaphore:
+            try:
+                await webpush_async(
+                    {"endpoint": target["endpoint"], "keys": {"p256dh": target["p256dh"], "auth": target["auth"]}},
+                    data,
+                    vapid_private_key=self.vapid,
+                    vapid_claims={"sub": self.subject},  # a fresh dict: webpush_async adds this endpoint's aud
+                    ttl=TTL,
+                    headers={"Urgency": urgency},
+                    aiohttp_session=session,
+                    timeout=SEND_TIMEOUT,
+                )
+            except WebPushException as exc:
+                status = exc.response.status if exc.response is not None else None
+                if status in (404, 410):  # the browser unsubscribed or the subscription expired
+                    self.store.delete_endpoint(target["endpoint"])
+                    logger.info(f"Removed device {target['device_id']}'s expired push subscription")
+                else:  # no endpoint in the log: it's a bearer capability for that device
+                    logger.warning(f"Push to device {target['device_id']} failed: HTTP {status}")
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                logger.warning(f"Push to device {target['device_id']} failed: {type(exc).__name__}")

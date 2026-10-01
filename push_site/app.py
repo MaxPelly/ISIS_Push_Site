@@ -5,7 +5,7 @@ import json
 import logging
 import re
 import time
-from typing import Awaitable, Callable, Optional
+from typing import Callable, Optional
 from urllib.parse import urlsplit
 
 from aiohttp import web
@@ -50,8 +50,9 @@ _KEY_RE = re.compile(r"[A-Za-z0-9_-]+={0,2}")
 CONFIG = web.AppKey("config", Config)
 VAPID_PUBLIC_KEY = web.AppKey("vapid_public_key", str)
 STORE = web.AppKey("store", Store)
-# Called with each newly stored notification (fan-out to push subscribers).
-ON_NOTIFICATION = web.AppKey("on_notification", Callable[[dict], Awaitable[None]])
+# Called with each newly stored notification (fan-out to push subscribers);
+# it must not block or raise, since the notification is already stored.
+ON_NOTIFICATION = web.AppKey("on_notification", Callable[[dict], None])
 
 
 def parse_notification(data: object) -> dict:
@@ -118,7 +119,7 @@ async def ingest(request: web.Request) -> web.Response:
         logger.warning(f"Rejected an ingest payload: {exc}")
         raise web.HTTPBadRequest(text=str(exc))
     if request.app[STORE].add_notification(notification, config.feed_max_items, config.feed_max_days):
-        await request.app[ON_NOTIFICATION](notification)
+        request.app[ON_NOTIFICATION](notification)
     return web.Response(status=204)
 
 
@@ -276,12 +277,12 @@ async def feed(request: web.Request, device_id: int) -> web.Response:
     return web.json_response(request.app[STORE].feed(limit))
 
 
-async def _ignore(notification: dict) -> None:
+def _ignore(notification: dict) -> None:
     pass
 
 
 def create_app(config: Config, store: Store,
-               on_notification: Optional[Callable[[dict], Awaitable[None]]] = None,
+               on_notification: Optional[Callable[[dict], None]] = None,
                vapid_public_key: str = "") -> web.Application:
     app = web.Application(client_max_size=MAX_BODY, middlewares=[same_origin_guard])
     app[CONFIG] = config

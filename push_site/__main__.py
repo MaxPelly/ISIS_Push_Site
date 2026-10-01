@@ -4,6 +4,7 @@ Run the admin commands on the server as the site's user; there's no admin
 web interface.
 """
 import argparse
+import asyncio
 import logging
 import os
 from datetime import datetime
@@ -13,15 +14,28 @@ from aiohttp import web
 
 from push_site.app import create_app
 from push_site.config import ConfigError, load_config
-from push_site.push import generate_vapid_key, load_vapid_key, public_key
+from push_site.push import Pusher, generate_vapid_key, load_vapid_key, public_key
 from push_site.storage import Store
 
 
-def serve(config, store: Store) -> None:
+def build_app(config, store: Store) -> web.Application:
+    """The app with its push worker running alongside it."""
     vapid = load_vapid_key(Path(config.vapid_key_file))
-    app = create_app(config, store, vapid_public_key=public_key(vapid))
+    pusher = Pusher(store, vapid, config.vapid_subject)
+    app = create_app(config, store, pusher.enqueue, public_key(vapid))
+
+    async def run_pusher(app):
+        task = asyncio.create_task(pusher.run())
+        yield
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    app.cleanup_ctx.append(run_pusher)
+    return app
+
+
+def serve(config, store: Store) -> None:
     # No access log: the reverse proxy keeps one.
-    web.run_app(app, host=config.host, port=config.port, access_log=None, print=None)
+    web.run_app(build_app(config, store), host=config.host, port=config.port, access_log=None, print=None)
 
 
 def invite(config, store: Store, args) -> None:

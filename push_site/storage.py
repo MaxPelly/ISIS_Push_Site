@@ -192,3 +192,13 @@ class Store:
 
     def topics(self) -> List[str]:
         return [row["name"] for row in self.db.execute("SELECT name FROM topics ORDER BY name")]
+
+    def push_targets(self, now: Optional[float] = None) -> List[dict]:
+        """Every subscription of a device that's still signed in, with its prefs."""
+        now = time.time() if now is None else now
+        rows = self.db.execute(
+            "SELECT s.device_id, s.endpoint, s.p256dh, s.auth, d.prefs FROM subscriptions s "
+            "JOIN devices d ON d.id = s.device_id WHERE d.last_seen > ?",
+            (now - DEVICE_IDLE_LIMIT,),
+        )
+        return [{**row, "prefs": json.loads(row["prefs"])} for row in map(dict, rows)]
