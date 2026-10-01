@@ -14,6 +14,6 @@ ingest_secret_file = push.secret
 
 [STORAGE]
 # db_path = push_site.db
-# How many recent notifications the feed keeps, and for how many days.
+# How many recent notifications the feed keeps (at least 50), and for how many days.
 # feed_max_items = 200
 # feed_max_days = 7

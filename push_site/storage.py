@@ -44,14 +44,15 @@ class Store:
                 "INSERT OR IGNORE INTO feed (id, received_at, payload) VALUES (?, ?, ?)",
                 (notification["id"], now, json.dumps(notification)),
             ).rowcount == 1
+            # Newest by rowid (insertion order), so a clock step can't reorder it.
             self.db.execute(
-                "DELETE FROM feed WHERE received_at < ? OR id NOT IN "
-                "(SELECT id FROM feed ORDER BY received_at DESC LIMIT ?)",
+                "DELETE FROM feed WHERE received_at < ? OR rowid NOT IN "
+                "(SELECT rowid FROM feed ORDER BY rowid DESC LIMIT ?)",
                 (now - max_days * 86400, max_items),
             )
         return inserted
 
     def feed(self, limit: int) -> List[dict]:
         """The newest `limit` notifications, newest first."""
-        rows = self.db.execute("SELECT payload FROM feed ORDER BY received_at DESC LIMIT ?", (limit,))
+        rows = self.db.execute("SELECT payload FROM feed ORDER BY rowid DESC LIMIT ?", (max(limit, 0),))
         return [json.loads(row["payload"]) for row in rows]

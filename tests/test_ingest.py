@@ -24,7 +24,7 @@ async def test_signed_notification_is_stored_and_passed_on_once(site):
     resp = await site.post("/ingest", **signed(payload()))
     assert resp.status == 204
     assert site.store.feed(10)[0]["title"] == "TS1 ⬇️ high → off"
-    assert [n["id"] for n in site.received] == ["id-1"]
+    assert [n["id"] for n in site.received] == ["0f0e-1"]
     # A retry or replay of the same id is accepted but not passed on again.
     assert (await site.post("/ingest", **signed(payload()))).status == 204
     assert len(site.received) == 1
@@ -35,6 +35,8 @@ async def test_signed_notification_is_stored_and_passed_on_once(site):
     {"timestamp": int(time.time()) - 120},
     {"timestamp": int(time.time()) + 120},
     {"timestamp": "soon"},
+    {"timestamp": "9" * 400},
+    {"timestamp": "+" + str(int(time.time()))},
 ])
 async def test_bad_or_stale_signature_is_rejected(site, kwargs):
     resp = await site.post("/ingest", **signed(payload(), **kwargs))
@@ -52,14 +54,16 @@ async def test_unsigned_or_tampered_requests_are_rejected(site):
     assert (await site.post("/ingest", **request)).status == 401
 
 
-async def test_forwarded_requests_are_refused(site):
+@pytest.mark.parametrize("header", ["X-Forwarded-For", "Forwarded"])
+async def test_forwarded_requests_are_refused(site, header):
     request = signed(payload())
-    request["headers"]["X-Forwarded-For"] = "203.0.113.9"
+    request["headers"][header] = "for=203.0.113.9"
     assert (await site.post("/ingest", **request)).status == 404
 
 
 async def test_oversized_body_is_refused(site):
-    assert (await site.post("/ingest", **signed(payload(text="x" * 20_000)))).status == 413
+    assert (await site.post("/ingest", **signed(payload(text="é" * 20_000)))).status == 204  # 40 KB
+    assert (await site.post("/ingest", **signed(payload(id="2", text="x" * 70_000)))).status == 413
 
 
 @pytest.mark.parametrize("data", [
@@ -67,7 +71,10 @@ async def test_oversized_body_is_refused(site):
     b"\xff\xfe",
     payload(v=2),
     payload(id=""),
-    payload(id="x" * 65),
+    payload(id="a" * 65),
+    payload(id="<img src=x onerror=alert(1)>"),
+    payload(topic="T" * 65),
+    b"[" * 15000,
     payload(title=None),
     payload(severity="panic"),
     payload(facts=[["only one"]]),

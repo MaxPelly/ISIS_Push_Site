@@ -34,7 +34,9 @@ class Config:
     feed_max_days: float = _ini("STORAGE", 7.0)
 
 
-_BOUNDS = {"port": (1, 65535), "feed_max_items": (1, 10_000), "feed_max_days": (0.01, 365)}
+# A repeated id is only refused while it's still in the feed, so the feed must
+# outlast /ingest's 60s timestamp window: at least 50 items and 864s.
+_BOUNDS = {"port": (1, 65535), "feed_max_items": (50, 10_000), "feed_max_days": (0.01, 365)}
 
 
 def read_secret(path: Path, what: str) -> bytes:
@@ -55,8 +57,10 @@ def read_secret(path: Path, what: str) -> bytes:
 def load_config(path: Path) -> Config:
     parser = configparser.ConfigParser(interpolation=None)
     try:
-        if not parser.read(path):
-            raise ConfigError(f"Config file not found: {path}")
+        with path.open(encoding="utf-8") as f:
+            parser.read_file(f)
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ConfigError(f"Could not read {path}: {exc}") from exc
     except configparser.Error as exc:
         raise ConfigError(f"Could not parse {path}: {exc}") from exc
 
@@ -78,9 +82,11 @@ def load_config(path: Path) -> Config:
         if not low <= getattr(config, name) <= high:  # also rejects nan
             raise ConfigError(f"{name} must be between {low} and {high}")
     origin = urlsplit(config.public_origin)
-    if origin.scheme != "https" or not origin.netloc or origin.path not in ("", "/"):
+    if (origin.scheme != "https" or not origin.hostname or "@" in origin.netloc
+            or origin.path not in ("", "/") or origin.query or origin.fragment):
         raise ConfigError("[SERVER] public_origin must be an https:// origin, e.g. https://push.example.org")
-    config.public_origin = f"{origin.scheme}://{origin.netloc}"
+    # Lower-cased as browsers send it in the Origin header.
+    config.public_origin = f"https://{origin.netloc.lower()}"
     if not config.ingest_secret_file:
         raise ConfigError("[SECRETS] ingest_secret_file is required")
     config.ingest_secret = read_secret(Path(config.ingest_secret_file), "[SECRETS] ingest_secret_file")

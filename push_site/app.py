@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import time
 from typing import Awaitable, Callable, Optional
 
@@ -13,9 +14,13 @@ from push_site.storage import Store
 
 logger = logging.getLogger(__name__)
 
-MAX_BODY = 16 * 1024  # every request this site accepts is small
+# Every request this site accepts is small; MCR news text (sent as both
+# text and summary) is the largest thing the monitor sends.
+MAX_BODY = 64 * 1024
 MAX_CLOCK_SKEW = 60  # seconds an ingest request's X-Timestamp may be off by
 SEVERITIES = ("info", "good", "warning", "attention")
+_ID_RE = re.compile(r"[0-9a-f-]{1,64}")  # the monitor sends uuid4s; ids also end up in URLs
+MAX_TOPIC_LENGTH = 64
 _TEXT_FIELDS = ("title", "text", "summary", "emoji", "flavour", "url_label", "channel", "topic")
 
 CONFIG = web.AppKey("config", Config)
@@ -30,13 +35,15 @@ def parse_notification(data: object) -> dict:
     if not isinstance(data, dict) or data.get("v") != 1:
         raise ValueError("expected a version 1 payload")
     n = {"id": data.get("id")}
-    if not isinstance(n["id"], str) or not 0 < len(n["id"]) <= 64:
+    if not isinstance(n["id"], str) or not _ID_RE.fullmatch(n["id"]):
         raise ValueError("bad id")
     for key in _TEXT_FIELDS:
         value = data.get(key, "")
         if not isinstance(value, str):
             raise ValueError(f"bad {key}")
         n[key] = value
+    if len(n["topic"]) > MAX_TOPIC_LENGTH:
+        raise ValueError("bad topic")
     n["severity"] = data.get("severity")
     if n["severity"] not in SEVERITIES:
         raise ValueError("bad severity")
@@ -59,11 +66,10 @@ def parse_notification(data: object) -> dict:
 
 
 def _signature_ok(secret: bytes, timestamp: str, signature: str, body: bytes) -> bool:
-    try:
-        sent_at = int(timestamp)
-    except ValueError:
+    # Plain digits only: int() would also take e.g. "+1_0" or a huge number.
+    if not (timestamp.isascii() and timestamp.isdigit() and len(timestamp) <= 12):
         return False
-    if abs(time.time() - sent_at) > MAX_CLOCK_SKEW or not signature.isascii():
+    if abs(time.time() - int(timestamp)) > MAX_CLOCK_SKEW or not signature.isascii():
         return False
     expected = hmac.new(secret, timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature)
@@ -83,7 +89,7 @@ async def ingest(request: web.Request) -> web.Response:
         raise web.HTTPUnauthorized()
     try:
         notification = parse_notification(json.loads(body))
-    except ValueError as exc:  # json.JSONDecodeError and UnicodeDecodeError are ValueErrors
+    except (ValueError, RecursionError) as exc:  # including JSONDecodeError and UnicodeDecodeError
         logger.warning(f"Rejected an ingest payload: {exc}")
         raise web.HTTPBadRequest(text=str(exc))
     if request.app[STORE].add_notification(notification, config.feed_max_items, config.feed_max_days):
