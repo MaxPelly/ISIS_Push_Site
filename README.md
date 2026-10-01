@@ -21,7 +21,7 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
   - `/ingest` needs a valid `X-Signature` (HMAC-SHA256 of `<X-Timestamp>.<body>` under the shared secret) and a timestamp within 60 seconds. A repeated notification id is dropped.
   - Requests forwarded by the proxy are refused, and the proxy refuses the path anyway.
 - **Accounts:**
-  - There are none. An admin creates invite links on the server, and redeeming one gives that browser a random device token in a `__Host-` cookie (`Secure`, `HttpOnly`, `SameSite=Strict`), valid for a year of use.
+  - There are none. An admin creates invite links on the server, and redeeming one gives that browser a random device token in a `__Host-` cookie (`Secure`, `HttpOnly`, `SameSite=Strict`). A device that goes unused for a year is signed out.
   - Only SHA-256 hashes of tokens are stored, and devices can be listed and revoked from the command line.
   - The invite token sits in the link's `#fragment`, so it never reaches server or proxy logs.
 - **API:**
@@ -38,24 +38,25 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
 
 These steps assume the monitor is checked out at `/opt/ISIS_Beam_Monitor` with this repo as its `push_site` submodule (`git submodule update --init push_site`). The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
 
-1. **Install the code and a user to run it:**
+1. **Install the code and a user to run it.** The `pushsite` user must be able to read the checkout (the default umask 022 allows this).
    ```bash
+   sudo apt install python3-venv   # on Debian/Ubuntu, if venv isn't available yet
    cd /opt/ISIS_Beam_Monitor/push_site
    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
    sudo useradd --system --home /var/lib/isis-push-site --shell /usr/sbin/nologin pushsite
    sudo install -d -o pushsite -g pushsite -m 700 /var/lib/isis-push-site
    ```
 
-2. **Create the shared secret** and give the daemon and the site their own copies, each readable only by the user that needs it. Surrounding whitespace in the files is ignored.
+2. **Create the shared secret** and give the daemon and the site their own copies, each readable only by the user that needs it. Surrounding whitespace in the files is ignored. The monitor's `.gitignore` covers `*.secret`, so the daemon's copy can't be committed by accident.
    ```bash
-   openssl rand -hex 32 > push.secret
-   sudo install -o pushsite -g pushsite -m 600 push.secret /var/lib/isis-push-site/push.secret
-   install -m 600 push.secret /opt/ISIS_Beam_Monitor/push.secret   # as the daemon's user
-   rm push.secret
+   (umask 077; openssl rand -hex 32 > /tmp/push.secret)
+   sudo install -o pushsite -g pushsite -m 600 /tmp/push.secret /var/lib/isis-push-site/push.secret
+   sudo install -o <daemon-user> -m 600 /tmp/push.secret /opt/ISIS_Beam_Monitor/push.secret
+   rm /tmp/push.secret
    ```
 
 3. **Configure the site:**
-   - Copy `push_site.ini.example` to `/var/lib/isis-push-site/push_site.ini`, owned by `pushsite` with mode 600.
+   - Create the config from the example: `sudo install -o pushsite -g pushsite -m 600 push_site.ini.example /var/lib/isis-push-site/push_site.ini`, then edit it with `sudoedit`.
    - Set `public_origin` (e.g. `https://push.example.org`) and `vapid_subject` (a `mailto:` address push services can use to reach you).
    - Relative paths in it are relative to the file.
    - Create the VAPID key once. Replacing it later makes every device subscribe again.
@@ -64,15 +65,15 @@ These steps assume the monitor is checked out at `/opt/ISIS_Beam_Monitor` with t
    ```
 
 4. **Run it:**
-   - Install `deploy/isis-push-site.service`, adjusting the paths if needed, then run `sudo systemctl enable --now isis-push-site`.
+   - Copy `deploy/isis-push-site.service` to `/etc/systemd/system/`, adjusting the paths if needed, then run `sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site`. Logs are in `journalctl -u isis-push-site`.
    - Set up Caddy with `deploy/Caddyfile`, using your host name. Caddy fetches the certificate itself.
-   - Any reverse proxy works if it terminates HTTPS, refuses `/ingest` and forwards the rest to `127.0.0.1:8765`.
+   - Any reverse proxy works if it terminates HTTPS, refuses `/ingest`, adds `X-Forwarded-For`, and forwards the rest to `127.0.0.1:8765`. The site refuses forwarded `/ingest` requests as a backstop.
 
-5. **Point the monitor at it** in the monitor's `config.ini`, then restart the daemon:
+5. **Point the monitor at it** in the monitor's `config.ini`, then restart the daemon. A relative `secret_file` is relative to the daemon's working directory, so an absolute path is safest:
    ```ini
    [PUSH]
    url = http://127.0.0.1:8765/ingest
-   secret_file = push.secret
+   secret_file = /opt/ISIS_Beam_Monitor/push.secret
    ```
 
 ## Inviting people
@@ -120,7 +121,12 @@ The body is UTF-8 JSON, at most 64 KB:
 }
 ```
 
-The site ignores unknown fields. A reply of 204 means the notification was accepted, including when its `id` was already seen. 400 means a malformed payload and 401 a bad or stale signature.
+The site ignores unknown fields. A reply of 204 means the notification was accepted, including when its `id` was already seen. Other replies:
+
+- 400: a malformed payload
+- 401: a bad or stale signature
+- 413: a body over 64 KB
+- 404: a request that came through the proxy
 
 Pushes carry only the title, the first 300 characters of the text, the severity and the id. Tapping one opens the app at that notification's feed entry.
 

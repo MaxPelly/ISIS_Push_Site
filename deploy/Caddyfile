@@ -6,7 +6,7 @@ push.example.org {
 	respond @ingest 404
 
 	request_body {
-		max_size 64KB
+		max_size 64KiB
 	}
 
 	header {
@@ -18,8 +18,9 @@ push.example.org {
 	reverse_proxy 127.0.0.1:8765
 
 	# Optional rate limiting needs Caddy built with the caddy-ratelimit plugin
-	# (xcaddy build --with github.com/mholt/caddy-ratelimit). Tokens are 256-bit,
-	# so this only guards against load, not guessing.
+	# (xcaddy build --with github.com/mholt/caddy-ratelimit) and a global
+	# `{ order rate_limit before basic_auth }` block at the top of the file.
+	# Tokens are 256-bit, so this only guards against load, not guessing.
 	# rate_limit {
 	# 	zone api {
 	# 		match {

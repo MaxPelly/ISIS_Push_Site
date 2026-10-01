@@ -8,11 +8,15 @@
 Description=ISIS Beam Monitor push notification site
 After=network-online.target
 Wants=network-online.target
+# A config error makes it exit straight away: stop retrying after 5 tries in a minute.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 User=pushsite
 Group=pushsite
-# Where the push_site code is, e.g. the monitor's push_site submodule.
+# Where the push_site code is, e.g. the monitor's push_site submodule
+# (not under /home: ProtectHome below hides it).
 WorkingDirectory=/opt/ISIS_Beam_Monitor/push_site
 ExecStart=/opt/ISIS_Beam_Monitor/push_site/.venv/bin/python -m push_site serve /var/lib/isis-push-site/push_site.ini
 Restart=on-failure
