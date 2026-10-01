@@ -12,6 +12,8 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+from push_site.prefs import DEFAULT_PREFS
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS feed (
     id TEXT PRIMARY KEY,
@@ -31,6 +33,12 @@ CREATE TABLE IF NOT EXISTS devices (
     token_hash TEXT NOT NULL UNIQUE,
     label TEXT NOT NULL,
     created_at REAL NOT NULL,
+    last_seen REAL NOT NULL,
+    prefs TEXT NOT NULL  -- JSON, see prefs.parse_prefs()
+);
+-- Every topic seen in a notification, for the preferences page.
+CREATE TABLE IF NOT EXISTS topics (
+    name TEXT PRIMARY KEY,
     last_seen REAL NOT NULL
 );
 -- One per device (browser). Deleted with the device: revoked, forgotten or idle.
@@ -43,6 +51,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 """
 
 DEVICE_IDLE_LIMIT = 365 * 86400  # a device unused for this long has to be invited again
+TOPIC_RETENTION = 90 * 86400  # topics not seen for this long drop off the preferences page
 LAST_SEEN_RESOLUTION = 3600  # last_seen is only rewritten when this much older
 
 
@@ -80,6 +89,10 @@ class Store:
                 "(SELECT rowid FROM feed ORDER BY rowid DESC LIMIT ?)",
                 (now - max_days * 86400, max_items),
             )
+            if inserted and notification.get("topic"):
+                self.db.execute("INSERT OR REPLACE INTO topics (name, last_seen) VALUES (?, ?)",
+                                (notification["topic"], now))
+                self.db.execute("DELETE FROM topics WHERE last_seen < ?", (now - TOPIC_RETENTION,))
         return inserted
 
     def feed(self, limit: int) -> List[dict]:
@@ -115,8 +128,8 @@ class Store:
             self.db.execute("DELETE FROM invites WHERE uses_left <= 0")
             token = secrets.token_urlsafe(32)
             self.db.execute(
-                "INSERT INTO devices (token_hash, label, created_at, last_seen) VALUES (?, ?, ?, ?)",
-                (_hash(token), row["label"], now, now),
+                "INSERT INTO devices (token_hash, label, created_at, last_seen, prefs) VALUES (?, ?, ?, ?, ?)",
+                (_hash(token), row["label"], now, now, json.dumps(DEFAULT_PREFS)),
             )
         return token
 
@@ -169,3 +182,13 @@ class Store:
         """Drop a subscription the push service says has gone."""
         with self.db:
             self.db.execute("DELETE FROM subscriptions WHERE endpoint = ?", (endpoint,))
+
+    def prefs(self, device_id: int) -> dict:
+        return json.loads(self.db.execute("SELECT prefs FROM devices WHERE id = ?", (device_id,)).fetchone()["prefs"])
+
+    def set_prefs(self, device_id: int, prefs: dict) -> None:
+        with self.db:
+            self.db.execute("UPDATE devices SET prefs = ? WHERE id = ?", (json.dumps(prefs), device_id))
+
+    def topics(self) -> List[str]:
+        return [row["name"] for row in self.db.execute("SELECT name FROM topics ORDER BY name")]

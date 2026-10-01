@@ -12,6 +12,7 @@ from aiohttp import web
 from aiohttp.web_protocol import RequestPayloadError
 
 from push_site.config import Config
+from push_site.prefs import BASE_TOPICS, parse_prefs
 from push_site.storage import DEVICE_IDLE_LIMIT, Store
 
 logger = logging.getLogger(__name__)
@@ -241,6 +242,40 @@ async def delete_subscription(request: web.Request, device_id: int) -> web.Respo
     return web.Response(status=204)
 
 
+@signed_in
+async def get_prefs(request: web.Request, device_id: int) -> web.Response:
+    return web.json_response(request.app[STORE].prefs(device_id))
+
+
+@signed_in
+async def put_prefs(request: web.Request, device_id: int) -> web.Response:
+    try:
+        prefs = parse_prefs(await _json_object(request))
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    request.app[STORE].set_prefs(device_id, prefs)
+    return web.Response(status=204)
+
+
+@signed_in
+async def topics(request: web.Request, device_id: int) -> web.Response:
+    """The topics to offer: the fixed ones, then instruments seen recently."""
+    seen = [t for t in request.app[STORE].topics() if t not in BASE_TOPICS]
+    return web.json_response(list(BASE_TOPICS) + seen)
+
+
+MAX_FEED = 200
+
+
+@signed_in
+async def feed(request: web.Request, device_id: int) -> web.Response:
+    try:
+        limit = min(int(request.query.get("limit", "50")), MAX_FEED)
+    except ValueError:
+        raise web.HTTPBadRequest(text="limit must be a number")
+    return web.json_response(request.app[STORE].feed(limit))
+
+
 async def _ignore(notification: dict) -> None:
     pass
 
@@ -261,4 +296,8 @@ def create_app(config: Config, store: Store,
     app.router.add_get("/api/vapid-key", vapid_key)
     app.router.add_put("/api/subscription", put_subscription)
     app.router.add_delete("/api/subscription", delete_subscription)
+    app.router.add_get("/api/prefs", get_prefs)
+    app.router.add_put("/api/prefs", put_prefs)
+    app.router.add_get("/api/topics", topics)
+    app.router.add_get("/api/feed", feed)
     return app
