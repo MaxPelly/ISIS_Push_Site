@@ -59,7 +59,7 @@ async def test_oversized_body_is_refused(site):
     payload(id="a" * 65),
     payload(id="<img src=x onerror=alert(1)>"),
     payload(topic="T" * 65),
-    b"[" * 15000,
+    pytest.param(b"[" * 15000, id="deeply-nested"),
     payload(title=None),
     payload(severity="panic"),
     payload(facts=[["only one"]]),
