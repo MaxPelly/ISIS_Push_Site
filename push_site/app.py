@@ -10,7 +10,7 @@ from typing import Awaitable, Callable, Optional
 from aiohttp import web
 
 from push_site.config import Config
-from push_site.storage import Store
+from push_site.storage import DEVICE_IDLE_LIMIT, Store
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,17 @@ SEVERITIES = ("info", "good", "warning", "attention")
 _ID_RE = re.compile(r"[0-9a-f-]{1,64}")  # the monitor sends uuid4s; ids also end up in URLs
 MAX_TOPIC_LENGTH = 64
 _TEXT_FIELDS = ("title", "text", "summary", "emoji", "flavour", "url_label", "channel", "topic")
+
+# __Host- makes browsers insist on Secure, Path=/ and no Domain.
+COOKIE = "__Host-device"
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; "
+        "form-action 'self'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
 
 CONFIG = web.AppKey("config", Config)
 STORE = web.AppKey("store", Store)
@@ -97,15 +108,88 @@ async def ingest(request: web.Request) -> web.Response:
     return web.Response(status=204)
 
 
+DEVICE = "device_id"  # request key: the signed-in device, set by api_guard
+
+
+@web.middleware
+async def api_guard(request: web.Request, handler):
+    """Every /api/ request that changes something must come from the site's
+    own pages (Origin) as JSON; all but /api/redeem need a device cookie."""
+    if request.path.startswith("/api/"):
+        if request.method not in ("GET", "HEAD") and (
+            request.headers.get("Origin") != request.app[CONFIG].public_origin
+            or request.content_type != "application/json"
+        ):
+            raise web.HTTPForbidden()
+        if request.path != "/api/redeem":
+            token = request.cookies.get(COOKIE)
+            device_id = request.app[STORE].device_for_token(token) if token else None
+            if device_id is None:
+                raise web.HTTPUnauthorized()
+            request[DEVICE] = device_id
+    return await handler(request)
+
+
+async def _add_security_headers(request: web.Request, response: web.StreamResponse) -> None:
+    response.headers.update(SECURITY_HEADERS)
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+
+
+async def _json_object(request: web.Request) -> dict:
+    try:
+        data = await request.json()
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        raise web.HTTPBadRequest(text="expected a JSON object")
+    return data
+
+
+def _set_device_cookie(response: web.Response, token: str) -> None:
+    response.set_cookie(COOKIE, token, max_age=DEVICE_IDLE_LIMIT, path="/",
+                        secure=True, httponly=True, samesite="Strict")
+
+
+async def redeem(request: web.Request) -> web.Response:
+    """Swap an invite (from the #invite= part of an invite link, which never
+    reaches the server's logs) for a device cookie."""
+    invite = (await _json_object(request)).get("invite")
+    token = request.app[STORE].redeem_invite(invite) if isinstance(invite, str) and invite else None
+    if token is None:
+        raise web.HTTPForbidden(text="This invite is invalid, used up or expired.")
+    response = web.json_response({"ok": True})
+    _set_device_cookie(response, token)
+    return response
+
+
+async def me(request: web.Request) -> web.Response:
+    response = web.json_response({"label": request.app[STORE].device_label(request[DEVICE])})
+    # Renewed whenever the app opens, so only a year of disuse signs a device out.
+    _set_device_cookie(response, request.cookies[COOKIE])
+    return response
+
+
+async def forget_me(request: web.Request) -> web.Response:
+    request.app[STORE].delete_device(request[DEVICE])
+    response = web.Response(status=204)
+    response.del_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="Strict")
+    return response
+
+
 async def _ignore(notification: dict) -> None:
     pass
 
 
 def create_app(config: Config, store: Store,
                on_notification: Optional[Callable[[dict], Awaitable[None]]] = None) -> web.Application:
-    app = web.Application(client_max_size=MAX_BODY)
+    app = web.Application(client_max_size=MAX_BODY, middlewares=[api_guard])
     app[CONFIG] = config
     app[STORE] = store
     app[ON_NOTIFICATION] = on_notification or _ignore
+    app.on_response_prepare.append(_add_security_headers)
     app.router.add_post("/ingest", ingest)
+    app.router.add_post("/api/redeem", redeem)
+    app.router.add_get("/api/me", me)
+    app.router.add_delete("/api/me", forget_me)
     return app

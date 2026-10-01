@@ -127,6 +127,10 @@ class Store:
                 self.db.execute("UPDATE devices SET last_seen = ? WHERE id = ?", (now, row["id"]))
         return row["id"]
 
+    def device_label(self, device_id: int) -> Optional[str]:
+        row = self.db.execute("SELECT label FROM devices WHERE id = ?", (device_id,)).fetchone()
+        return row["label"] if row else None
+
     def devices(self) -> List[sqlite3.Row]:
         return self.db.execute("SELECT id, label, created_at, last_seen FROM devices ORDER BY id").fetchall()
 

@@ -2,22 +2,7 @@ import time
 
 import pytest
 
-from push_site.app import create_app
-from push_site.storage import Store
-from tests.helpers import make_config, payload, signed
-
-
-@pytest.fixture
-async def site(tmp_path, aiohttp_client):
-    store = Store(tmp_path / "push.db")
-    received = []
-
-    async def on_notification(n):
-        received.append(n)
-    client = await aiohttp_client(create_app(make_config(tmp_path), store, on_notification))
-    client.received, client.store = received, store
-    yield client
-    store.close()
+from tests.helpers import payload, signed
 
 
 async def test_signed_notification_is_stored_and_passed_on_once(site):

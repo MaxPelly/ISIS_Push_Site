@@ -32,3 +32,26 @@ def signed(data, secret: bytes = SECRET, timestamp=None) -> dict:
     ts = str(int(time.time()) if timestamp is None else timestamp)
     sig = hmac.new(secret, ts.encode() + b"." + body, hashlib.sha256).hexdigest()
     return {"data": body, "headers": {"Content-Type": "application/json", "X-Timestamp": ts, "X-Signature": sig}}
+
+
+ORIGIN = "https://push.example.org"
+
+
+async def api(client, method: str, path: str, body=None, token=None, origin=ORIGIN, headers=None):
+    """Call the JSON API like the site's own pages do."""
+    headers = dict(headers or {})
+    if origin:
+        headers["Origin"] = origin
+    if token:
+        headers["Cookie"] = f"__Host-device={token}"
+    if body is not None:
+        return await client.request(method, path, json=body, headers=headers)
+    return await client.request(method, path, headers=headers)
+
+
+async def signed_in(client) -> str:
+    """A device token, from redeeming a fresh invite."""
+    invite = client.store.create_invite("test", uses=1, ttl=60)
+    resp = await api(client, "POST", "/api/redeem", {"invite": invite})
+    assert resp.status == 200
+    return resp.cookies["__Host-device"].value
