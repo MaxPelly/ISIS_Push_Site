@@ -38,6 +38,8 @@ def test_values_are_read(write):
     ({"origin": "http://push.example.org"}, "public_origin"),
     ({"origin": "https://push.example.org/app"}, "public_origin"),
     ({"origin": "https://user:pw@push.example.org"}, "public_origin"),
+    ({"origin": "https://[abc"}, "public_origin"),
+    ({"origin": "https://push.example.org:99999"}, "public_origin"),
     ({"body": "[STORAGE]\nfeed_max_items = 10\n"}, "feed_max_items must be between 50"),
     ({"secret": ""}, "ingest_secret_file is required"),
     ({"secret": "/nonexistent"}, "could not be read"),

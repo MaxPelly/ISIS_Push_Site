@@ -81,8 +81,12 @@ def load_config(path: Path) -> Config:
     for name, (low, high) in _BOUNDS.items():
         if not low <= getattr(config, name) <= high:  # also rejects nan
             raise ConfigError(f"{name} must be between {low} and {high}")
-    origin = urlsplit(config.public_origin)
-    if (origin.scheme != "https" or not origin.hostname or "@" in origin.netloc
+    try:
+        origin = urlsplit(config.public_origin)
+        origin.port  # raises ValueError if out of range
+    except ValueError:
+        origin = None
+    if (not origin or origin.scheme != "https" or not origin.hostname or "@" in origin.netloc
             or origin.path not in ("", "/") or origin.query or origin.fragment):
         raise ConfigError("[SERVER] public_origin must be an https:// origin, e.g. https://push.example.org")
     # Lower-cased as browsers send it in the Origin header.
