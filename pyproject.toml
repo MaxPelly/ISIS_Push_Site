@@ -21,5 +21,8 @@ dev = [
 [tool.setuptools]
 packages = ["push_site"]
 
+[tool.setuptools.package-data]
+push_site = ["static/*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

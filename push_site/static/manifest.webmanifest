@@ -1,0 +1,14 @@
+{
+  "name": "ISIS Beam Monitor",
+  "short_name": "ISIS Beam",
+  "description": "Push notifications for ISIS beam status, experiment runs and MCR news",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#102542",
+  "theme_color": "#102542",
+  "icons": [
+    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

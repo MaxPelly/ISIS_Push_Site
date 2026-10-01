@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import time
+from pathlib import Path
 from typing import Callable, Optional
 from urllib.parse import urlsplit
 
@@ -28,6 +29,8 @@ SEVERITIES = ("info", "good", "warning", "attention")
 _ID_RE = re.compile(r"[0-9a-f-]{1,64}")  # the monitor sends uuid4s; ids also end up in URLs
 MAX_TOPIC_LENGTH = 64
 _TEXT_FIELDS = ("title", "text", "summary", "emoji", "flavour", "url_label", "channel", "topic")
+
+STATIC = Path(__file__).parent / "static"
 
 # __Host- makes browsers insist on Secure, Path=/ and no Domain.
 COOKIE = "__Host-device"
@@ -297,6 +300,14 @@ async def feed(request: web.Request, device_id: int) -> web.Response:
     return web.json_response(request.app[STORE].feed(limit))
 
 
+def _file(name: str, content_type: str, cache: str = "no-cache"):
+    """A handler serving one static file. no-cache still allows ETag revalidation,
+    so a new version is picked up straight away."""
+    async def handler(request: web.Request) -> web.FileResponse:
+        return web.FileResponse(STATIC / name, headers={"Content-Type": content_type, "Cache-Control": cache})
+    return handler
+
+
 def _ignore(notification: dict) -> None:
     pass
 
@@ -321,4 +332,6 @@ def create_app(config: Config, store: Store,
     app.router.add_put("/api/prefs", put_prefs)
     app.router.add_get("/api/topics", topics)
     app.router.add_get("/api/feed", feed)
+    app.router.add_get("/manifest.webmanifest", _file("manifest.webmanifest", "application/manifest+json"))
+    app.router.add_static("/static/", STATIC)
     return app
