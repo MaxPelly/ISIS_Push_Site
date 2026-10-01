@@ -33,6 +33,13 @@ CREATE TABLE IF NOT EXISTS devices (
     created_at REAL NOT NULL,
     last_seen REAL NOT NULL
 );
+-- One per device (browser). Deleted with the device: revoked, forgotten or idle.
+CREATE TABLE IF NOT EXISTS subscriptions (
+    device_id INTEGER PRIMARY KEY REFERENCES devices (id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL
+);
 """
 
 DEVICE_IDLE_LIMIT = 365 * 86400  # a device unused for this long has to be invited again
@@ -144,3 +151,21 @@ class Store:
     def delete_device(self, device_id: int) -> bool:
         with self.db:
             return self.db.execute("DELETE FROM devices WHERE id = ?", (device_id,)).rowcount == 1
+
+    def set_subscription(self, device_id: int, endpoint: str, p256dh: str, auth: str) -> None:
+        """Save a device's push subscription, replacing its old one, and any
+        other device's with the same endpoint (the same browser signed in again)."""
+        with self.db:
+            self.db.execute(
+                "INSERT OR REPLACE INTO subscriptions (device_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)",
+                (device_id, endpoint, p256dh, auth),
+            )
+
+    def delete_subscription(self, device_id: int) -> None:
+        with self.db:
+            self.db.execute("DELETE FROM subscriptions WHERE device_id = ?", (device_id,))
+
+    def delete_endpoint(self, endpoint: str) -> None:
+        """Drop a subscription the push service says has gone."""
+        with self.db:
+            self.db.execute("DELETE FROM subscriptions WHERE endpoint = ?", (endpoint,))

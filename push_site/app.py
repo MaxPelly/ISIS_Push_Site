@@ -6,6 +6,7 @@ import logging
 import re
 import time
 from typing import Awaitable, Callable, Optional
+from urllib.parse import urlsplit
 
 from aiohttp import web
 from aiohttp.web_protocol import RequestPayloadError
@@ -40,7 +41,13 @@ SECURITY_HEADERS = {
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{43}")  # secrets.token_urlsafe(32), as invites and devices use
 
+# Hosts of the browsers' push services; subscriptions elsewhere are refused,
+# so the site can't be made to send requests to arbitrary servers.
+PUSH_SERVICE_HOSTS = ("fcm.googleapis.com", ".push.apple.com", ".push.services.mozilla.com", ".notify.windows.com")
+_KEY_RE = re.compile(r"[A-Za-z0-9_-]+={0,2}")
+
 CONFIG = web.AppKey("config", Config)
+VAPID_PUBLIC_KEY = web.AppKey("vapid_public_key", str)
 STORE = web.AppKey("store", Store)
 # Called with each newly stored notification (fan-out to push subscribers).
 ON_NOTIFICATION = web.AppKey("on_notification", Callable[[dict], Awaitable[None]])
@@ -193,19 +200,65 @@ async def forget_me(request: web.Request, device_id: int) -> web.Response:
     return response
 
 
+@signed_in
+async def vapid_key(request: web.Request, device_id: int) -> web.Response:
+    return web.json_response({"key": request.app[VAPID_PUBLIC_KEY]})
+
+
+def push_endpoint_ok(endpoint: object) -> bool:
+    if not isinstance(endpoint, str) or len(endpoint) > 1024:
+        return False
+    try:
+        url = urlsplit(endpoint)
+        port = url.port
+    except ValueError:
+        return False
+    host = url.hostname or ""
+    return (url.scheme == "https" and "@" not in url.netloc and port in (None, 443)
+            and any(host == h or (h.startswith(".") and host.endswith(h)) for h in PUSH_SERVICE_HOSTS))
+
+
+def _key_ok(value: object, low: int, high: int) -> bool:
+    return isinstance(value, str) and low <= len(value) <= high and bool(_KEY_RE.fullmatch(value))
+
+
+@signed_in
+async def put_subscription(request: web.Request, device_id: int) -> web.Response:
+    """Save the browser's PushSubscription (as from its toJSON())."""
+    data = await _json_object(request)
+    keys = data.get("keys") if isinstance(data.get("keys"), dict) else {}
+    # p256dh is a 65-byte P-256 point and auth 16 bytes, both base64url.
+    if not (push_endpoint_ok(data.get("endpoint")) and _key_ok(keys.get("p256dh"), 80, 100)
+            and _key_ok(keys.get("auth"), 16, 32)):
+        raise web.HTTPBadRequest(text="not a push subscription from a supported browser")
+    request.app[STORE].set_subscription(device_id, data["endpoint"], keys["p256dh"], keys["auth"])
+    return web.Response(status=204)
+
+
+@signed_in
+async def delete_subscription(request: web.Request, device_id: int) -> web.Response:
+    request.app[STORE].delete_subscription(device_id)
+    return web.Response(status=204)
+
+
 async def _ignore(notification: dict) -> None:
     pass
 
 
 def create_app(config: Config, store: Store,
-               on_notification: Optional[Callable[[dict], Awaitable[None]]] = None) -> web.Application:
+               on_notification: Optional[Callable[[dict], Awaitable[None]]] = None,
+               vapid_public_key: str = "") -> web.Application:
     app = web.Application(client_max_size=MAX_BODY, middlewares=[same_origin_guard])
     app[CONFIG] = config
     app[STORE] = store
     app[ON_NOTIFICATION] = on_notification or _ignore
+    app[VAPID_PUBLIC_KEY] = vapid_public_key
     app.on_response_prepare.append(_add_security_headers)
     app.router.add_post("/ingest", ingest)
     app.router.add_post("/api/redeem", redeem)
     app.router.add_get("/api/me", me)
     app.router.add_delete("/api/me", forget_me)
+    app.router.add_get("/api/vapid-key", vapid_key)
+    app.router.add_put("/api/subscription", put_subscription)
+    app.router.add_delete("/api/subscription", delete_subscription)
     return app

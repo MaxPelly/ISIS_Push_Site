@@ -13,12 +13,13 @@ from aiohttp import web
 
 from push_site.app import create_app
 from push_site.config import ConfigError, load_config
-from push_site.push import generate_vapid_key, public_key
+from push_site.push import generate_vapid_key, load_vapid_key, public_key
 from push_site.storage import Store
 
 
 def serve(config, store: Store) -> None:
-    app = create_app(config, store)
+    vapid = load_vapid_key(Path(config.vapid_key_file))
+    app = create_app(config, store, vapid_public_key=public_key(vapid))
     # No access log: the reverse proxy keeps one.
     web.run_app(app, host=config.host, port=config.port, access_log=None, print=None)
 

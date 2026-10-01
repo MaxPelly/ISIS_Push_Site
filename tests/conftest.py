@@ -13,7 +13,7 @@ async def site(tmp_path, aiohttp_client):
 
     async def on_notification(n):
         received.append(n)
-    client = await aiohttp_client(create_app(make_config(tmp_path), store, on_notification))
+    client = await aiohttp_client(create_app(make_config(tmp_path), store, on_notification, vapid_public_key="BPublicKey"))
     client.received, client.store = received, store
     yield client
     store.close()
