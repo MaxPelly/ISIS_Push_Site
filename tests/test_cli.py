@@ -1,6 +1,8 @@
 import pytest
 
 from push_site.__main__ import main
+from push_site.config import ConfigError
+from push_site.push import load_vapid_key, public_key
 from push_site.storage import Store
 
 
@@ -11,6 +13,7 @@ def ini(tmp_path):
     secret.chmod(0o600)
     path = tmp_path / "push_site.ini"
     path.write_text(f"[SERVER]\npublic_origin = https://push.example.org\n[SECRETS]\ningest_secret_file = {secret}\n"
+                    "vapid_subject = mailto:admin@example.org\n"
                     f"[STORAGE]\ndb_path = {tmp_path / 'push.db'}\n")
     return path
 
@@ -51,3 +54,22 @@ def test_refuses_to_run_as_root(ini, monkeypatch):
     monkeypatch.setattr("os.geteuid", lambda: 0)
     with pytest.raises(SystemExit, match="not root"):
         main(["devices", str(ini)])
+
+
+def test_vapid_creates_a_private_key_once(ini, tmp_path, capsys):
+    main(["vapid", str(ini)])
+    key_file = tmp_path / "vapid.pem"
+    assert oct(key_file.stat().st_mode & 0o777) == "0o600"
+    public = capsys.readouterr().out.strip().splitlines()[-1]
+    assert public == public_key(load_vapid_key(key_file))
+    assert len(public) == 87  # base64url of a 65-byte uncompressed P-256 point
+    with pytest.raises(SystemExit, match="already exists"):
+        main(["vapid", str(ini)])
+
+
+def test_bad_vapid_key_is_a_config_error(tmp_path):
+    (tmp_path / "bad.pem").write_text("nope")
+    with pytest.raises(ConfigError, match="not a valid VAPID key"):
+        load_vapid_key(tmp_path / "bad.pem")
+    with pytest.raises(ConfigError, match="python -m push_site vapid"):
+        load_vapid_key(tmp_path / "missing.pem")

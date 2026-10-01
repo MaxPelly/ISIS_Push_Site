@@ -9,7 +9,8 @@ SECRET = b"k" * 32
 
 
 def make_config(tmp_path, **overrides) -> Config:
-    values = dict(public_origin="https://push.example.org", ingest_secret=SECRET, db_path=str(tmp_path / "push.db"))
+    values = dict(public_origin="https://push.example.org", ingest_secret=SECRET, db_path=str(tmp_path / "push.db"),
+                  vapid_key_file=str(tmp_path / "vapid.pem"), vapid_subject="mailto:admin@example.org")
     values.update(overrides)
     return Config(**values)
 

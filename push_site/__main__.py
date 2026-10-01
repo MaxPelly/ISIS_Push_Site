@@ -13,6 +13,7 @@ from aiohttp import web
 
 from push_site.app import create_app
 from push_site.config import ConfigError, load_config
+from push_site.push import generate_vapid_key, public_key
 from push_site.storage import Store
 
 
@@ -47,6 +48,11 @@ def revoke(config, store: Store, args) -> None:
     print(f"Device {args.device_id} revoked.")
 
 
+def vapid(config, store: Store, args) -> None:
+    key = generate_vapid_key(Path(config.vapid_key_file))
+    print(f"Created {config.vapid_key_file}; keep it private. Public key:\n{public_key(key)}")
+
+
 def _positive(kind):
     def parse(value: str):
         number = kind(value)
@@ -72,6 +78,7 @@ def main(argv=None) -> None:
     sub.add_argument("--days", type=_positive(float), default=7, help="how long it's valid for (default 7)")
     command("devices", "list signed-in devices")
     command("revoke", "sign a device out and drop its subscription").add_argument("device_id", type=int)
+    command("vapid", "create the site's VAPID key (once, before the first serve)")
     args = parser.parse_args(argv)
     if os.geteuid() == 0:
         # Files it created would be root's, and the site couldn't write them.
@@ -80,16 +87,17 @@ def main(argv=None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
         config = load_config(args.config)
+        store = Store(Path(config.db_path))
+        try:
+            if args.command == "serve":
+                serve(config, store)
+            else:
+                commands = {"invite": invite, "devices": devices, "revoke": revoke, "vapid": vapid}
+                commands[args.command](config, store, args)
+        finally:
+            store.close()
     except ConfigError as exc:
         raise SystemExit(f"Configuration error: {exc}")
-    store = Store(Path(config.db_path))
-    try:
-        if args.command == "serve":
-            serve(config, store)
-        else:
-            {"invite": invite, "devices": devices, "revoke": revoke}[args.command](config, store, args)
-    finally:
-        store.close()
 
 
 if __name__ == "__main__":

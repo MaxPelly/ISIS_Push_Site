@@ -11,10 +11,12 @@ def write(tmp_path):
     secret_file.write_text(SECRET + "\n")
     secret_file.chmod(0o600)
 
-    def write(body: str = "", origin: str = "https://push.example.org", secret=secret_file):
+    def write(body: str = "", origin: str = "https://push.example.org", secret=secret_file,
+              subject: str = "mailto:admin@example.org"):
         path = tmp_path / "push_site.ini"
         # `body` continues the [SERVER] section.
-        path.write_text(f"[SECRETS]\ningest_secret_file = {secret}\n[SERVER]\npublic_origin = {origin}\n{body}")
+        path.write_text(f"[SECRETS]\ningest_secret_file = {secret}\nvapid_subject = {subject}\n"
+                        f"[SERVER]\npublic_origin = {origin}\n{body}")
         return path
     return write
 
@@ -23,6 +25,7 @@ def test_defaults_and_secret(write, tmp_path):
     config = load_config(write())
     assert (config.host, config.port) == ("127.0.0.1", 8765)
     assert config.db_path == str(tmp_path / "push_site.db")  # relative to the config file
+    assert config.vapid_key_file == str(tmp_path / "vapid.pem")
     assert (config.feed_max_items, config.feed_max_days) == (200, 7.0)
     assert config.public_origin == "https://push.example.org"
     assert config.ingest_secret == SECRET.encode()
@@ -43,6 +46,8 @@ def test_values_are_read(write):
     ({"origin": "https://push.example.org:99999"}, "public_origin"),
     ({"body": "[STORAGE]\nfeed_max_items = 10\n"}, "feed_max_items must be between 50"),
     ({"secret": ""}, "ingest_secret_file is required"),
+    ({"subject": ""}, "vapid_subject"),
+    ({"subject": "admin@example.org"}, "vapid_subject"),
     ({"secret": "/nonexistent"}, "could not be read"),
     ({"body": "port = 0\n"}, "port must be between"),
     ({"body": "[STORAGE]\nfeed_max_days = nan\n"}, "feed_max_days must be between"),

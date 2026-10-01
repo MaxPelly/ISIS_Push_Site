@@ -28,6 +28,10 @@ class Config:
 
     ingest_secret_file: str = _ini("SECRETS", "")
     ingest_secret: bytes = field(default=b"", repr=False)  # read from ingest_secret_file
+    # Created by `python -m push_site vapid`; identifies this site to push services.
+    vapid_key_file: str = _ini("SECRETS", "vapid.pem")
+    # How push services can contact the site's admin: mailto: or https: (required).
+    vapid_subject: str = _ini("SECRETS", "")
 
     db_path: str = _ini("STORAGE", "push_site.db")
     feed_max_items: int = _ini("STORAGE", 200)
@@ -98,5 +102,8 @@ def load_config(path: Path) -> Config:
     # find the same files wherever they're run from.
     config.ingest_secret_file = str(path.parent / config.ingest_secret_file)
     config.db_path = str(path.parent / config.db_path)
+    config.vapid_key_file = str(path.parent / config.vapid_key_file)
+    if not config.vapid_subject.startswith(("mailto:", "https://")):
+        raise ConfigError("[SECRETS] vapid_subject must be a mailto: or https:// URL, e.g. mailto:admin@example.org")
     config.ingest_secret = read_secret(Path(config.ingest_secret_file), "[SECRETS] ingest_secret_file")
     return config
