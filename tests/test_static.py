@@ -32,3 +32,4 @@ async def test_page_and_its_assets(site):
     for path, kind in (("/static/app.js", "application/javascript"), ("/static/app.css", "text/css")):
         resp = await site.get(path)
         assert resp.status == 200 and kind in resp.content_type.replace("text/javascript", "application/javascript")
+        assert resp.headers["Cache-Control"] == "no-cache"

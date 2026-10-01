@@ -158,6 +158,9 @@ async def _add_security_headers(request: web.Request, response: web.StreamRespon
     response.headers.update(SECURITY_HEADERS)
     if request.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
+    elif request.path.startswith("/static/"):
+        # Revalidated (cheaply, by ETag) on every load, so phones pick up a new version at once.
+        response.headers["Cache-Control"] = "no-cache"
 
 
 async def _read_body(request: web.Request) -> bytes:

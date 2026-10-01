@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#102542">
   <title>ISIS Beam Monitor</title>
   <link rel="manifest" href="/manifest.webmanifest">
@@ -19,9 +19,14 @@
     <section id="join" hidden>
       <h2>Join</h2>
       <p id="join-text"></p>
-      <p id="join-ios" class="hint" hidden>On iPhone or iPad: join here first, then tap Share and
-        <em>Add to Home Screen</em>, and open the app from your Home Screen to turn on notifications.</p>
+      <p id="join-ios" class="hint" hidden>On iPhone or iPad, first copy your invite link, tap Share and then
+        <em>Add to Home Screen</em>. Open the app from your Home Screen and paste the link there.</p>
       <button id="join-button" hidden>Join with this invite</button>
+      <form id="join-paste">
+        <label for="invite-link">Invite link</label>
+        <input id="invite-link" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+        <button type="submit">Join</button>
+      </form>
     </section>
 
     <div id="app" hidden>
@@ -41,8 +46,8 @@
           <fieldset>
             <legend>Quiet hours</legend>
             <label><input type="checkbox" id="quiet-on"> Quiet from</label>
-            <input type="time" id="quiet-start" value="22:00" required> to
-            <input type="time" id="quiet-end" value="07:00" required>
+            <input type="time" id="quiet-start" value="22:00" aria-label="Quiet hours start"> to
+            <input type="time" id="quiet-end" value="07:00" aria-label="Quiet hours end">
             <label><input type="checkbox" id="quiet-warnings" checked> Still send warnings</label>
             <p id="quiet-tz" class="hint"></p>
           </fieldset>
