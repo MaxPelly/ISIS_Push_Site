@@ -36,7 +36,7 @@ STATIC = Path(__file__).parent / "static"
 COOKIE = "__Host-device"
 SECURITY_HEADERS = {
     "Content-Security-Policy": (
-        "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; "
+        "default-src 'self'; object-src 'none'; base-uri 'none'; "
         "form-action 'self'; frame-ancestors 'none'"
     ),
     "X-Content-Type-Options": "nosniff",
