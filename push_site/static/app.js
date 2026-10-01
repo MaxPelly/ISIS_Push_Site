@@ -80,6 +80,7 @@ function showJoin(invite) {
     ? "You've been invited to get ISIS beam notifications on this device."
     : "To get notifications here, open or paste the invite link you were sent.";
   $("join-button").hidden = !invite || INSTALL_FIRST;
+  $("join-paste").hidden = INSTALL_FIRST;  // joining in Safari would use up the invite outside the app
   $("join-button").onclick = () => join(invite);
 }
 
