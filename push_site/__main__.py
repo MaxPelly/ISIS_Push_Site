@@ -5,6 +5,7 @@ web interface.
 """
 import argparse
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -72,6 +73,9 @@ def main(argv=None) -> None:
     command("devices", "list signed-in devices")
     command("revoke", "sign a device out and drop its subscription").add_argument("device_id", type=int)
     args = parser.parse_args(argv)
+    if os.geteuid() == 0:
+        # Files it created would be root's, and the site couldn't write them.
+        raise SystemExit("Run this as the site's own user, not root (e.g. sudo -u pushsite ...).")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:

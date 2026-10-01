@@ -45,3 +45,9 @@ def test_invite_arguments_are_checked(ini, args):
 def test_config_error_is_reported(tmp_path):
     with pytest.raises(SystemExit, match="Configuration error"):
         main(["devices", str(tmp_path / "missing.ini")])
+
+
+def test_refuses_to_run_as_root(ini, monkeypatch):
+    monkeypatch.setattr("os.geteuid", lambda: 0)
+    with pytest.raises(SystemExit, match="not root"):
+        main(["devices", str(ini)])

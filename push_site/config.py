@@ -89,9 +89,14 @@ def load_config(path: Path) -> Config:
     if (not origin or origin.scheme != "https" or not origin.hostname or "@" in origin.netloc
             or origin.path not in ("", "/") or origin.query or origin.fragment):
         raise ConfigError("[SERVER] public_origin must be an https:// origin, e.g. https://push.example.org")
-    # Lower-cased as browsers send it in the Origin header.
-    config.public_origin = f"https://{origin.netloc.lower()}"
+    # As browsers send it in the Origin header: lower-case, no default port.
+    netloc = origin.netloc.lower()
+    config.public_origin = f"https://{netloc[:-4] if netloc.endswith(':443') else netloc}"
     if not config.ingest_secret_file:
         raise ConfigError("[SECRETS] ingest_secret_file is required")
+    # Relative paths are relative to the config file, so the admin commands
+    # find the same files wherever they're run from.
+    config.ingest_secret_file = str(path.parent / config.ingest_secret_file)
+    config.db_path = str(path.parent / config.db_path)
     config.ingest_secret = read_secret(Path(config.ingest_secret_file), "[SECRETS] ingest_secret_file")
     return config

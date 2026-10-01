@@ -1,4 +1,4 @@
-# Copy to push_site.ini and edit. Relative paths are relative to the working directory.
+# Copy to push_site.ini and edit. Relative paths are relative to this file.
 
 [SERVER]
 # Bind to localhost only; a reverse proxy (e.g. Caddy) terminates HTTPS in front.

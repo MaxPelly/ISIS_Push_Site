@@ -1,5 +1,6 @@
 import pytest
 
+from push_site.storage import DEVICE_IDLE_LIMIT
 from tests.helpers import api, signed_in
 
 
@@ -66,4 +67,52 @@ async def test_every_response_has_security_headers(site):
     for resp in (await site.get("/api/me"), await site.get("/missing"), await site.post("/ingest")):
         assert "frame-ancestors 'none'" in resp.headers["Content-Security-Policy"]
         assert resp.headers["X-Content-Type-Options"] == "nosniff"
-        assert resp.headers["Referrer-Policy"] == "no-referrer"
+        assert resp.headers["Referrer-Policy"] == "same-origin"  # no-referrer would send Origin: null
+
+
+async def test_every_api_route_but_redeem_needs_a_device_cookie(site):
+    routes = {(r.method, r.resource.canonical) for r in site.app.router.routes()
+              if r.resource.canonical.startswith("/api/") and r.method != "HEAD"}
+    assert routes  # the check below covers every route as more are added
+    for method, path in routes - {("POST", "/api/redeem")}:
+        resp = await api(site, method, path, None if method == "GET" else {})
+        assert resp.status == 401, (method, path)
+
+
+@pytest.mark.parametrize("invite", ["\ud800" * 43, "a" * 42, "a" * 44, "é" * 43])
+async def test_malformed_invites_are_refused_cleanly(site, invite):
+    assert (await api(site, "POST", "/api/redeem", {"invite": invite})).status == 403
+
+
+async def test_malformed_cookies_are_refused_cleanly(site):
+    for cookie in ("\udcff" * 43, "x" * 5000):
+        assert (await api(site, "GET", "/api/me", token=cookie)).status == 401
+
+
+@pytest.mark.parametrize("data, headers", [
+    (b"[" * 60000, {}),
+    (b"{}", {"Content-Type": "application/json; charset=latin-9xx"}),
+    (b"not gzip", {"Content-Encoding": "gzip"}),
+])
+async def test_malformed_bodies_are_refused_cleanly(site, data, headers):
+    headers = {"Origin": "https://push.example.org", "Content-Type": "application/json", **headers}
+    assert (await site.post("/api/redeem", data=data, headers=headers)).status in (400, 403)
+
+
+async def test_json_with_a_charset_is_accepted(site):
+    invite = site.store.create_invite("a", uses=1, ttl=60)
+    resp = await site.post("/api/redeem", data=f'{{"invite": "{invite}"}}', headers={
+        "Origin": "https://push.example.org", "Content-Type": "application/json; charset=utf-8"})
+    assert resp.status == 200
+
+
+async def test_head_and_options_are_guarded(site):
+    assert (await site.head("/api/me")).status == 401
+    assert (await site.options("/api/me")).status == 403
+
+
+async def test_idle_device_cookie_is_refused(site):
+    token = await signed_in(site)
+    site.store.db.execute("UPDATE devices SET last_seen = last_seen - ?", (DEVICE_IDLE_LIMIT,))
+    site.store.db.commit()
+    assert (await api(site, "GET", "/api/me", token=token)).status == 401

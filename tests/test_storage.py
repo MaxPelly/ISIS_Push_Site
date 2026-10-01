@@ -37,7 +37,7 @@ def test_invite_redeems_for_its_uses_then_stops(store):
     first, second = store.redeem_invite(invite, now=1), store.redeem_invite(invite, now=2)
     assert first and second and first != second
     assert store.redeem_invite(invite, now=3) is None
-    assert [d["label"] for d in store.devices()] == ["Max's phone", "Max's phone"]
+    assert [d["label"] for d in store.devices(now=3)] == ["Max's phone", "Max's phone"]
     assert store.db.execute("SELECT COUNT(*) FROM invites").fetchone()[0] == 0  # used up and removed
 
 
@@ -62,11 +62,13 @@ def test_device_lookup_tracks_last_seen_and_expires_when_idle(store):
     token = store.redeem_invite(invite, now=0)
     device_id = store.device_for_token(token, now=10)
     assert device_id is not None
-    assert store.devices()[0]["last_seen"] == 0  # not rewritten within the hour
+    assert store.devices(now=10)[0]["last_seen"] == 0  # not rewritten within the hour
     assert store.device_for_token(token, now=7200) == device_id
-    assert store.devices()[0]["last_seen"] == 7200
+    assert store.devices(now=7200)[0]["last_seen"] == 7200
     assert store.device_for_token(token, now=7200 + DEVICE_IDLE_LIMIT) is None
     assert store.device_for_token("wrong", now=7200) is None
+    # Idle devices are deleted when listed (or when an invite is made).
+    assert store.devices(now=7200 + DEVICE_IDLE_LIMIT) == []
 
 
 def test_delete_device(store):

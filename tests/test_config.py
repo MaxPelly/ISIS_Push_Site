@@ -19,9 +19,10 @@ def write(tmp_path):
     return write
 
 
-def test_defaults_and_secret(write):
+def test_defaults_and_secret(write, tmp_path):
     config = load_config(write())
-    assert (config.host, config.port, config.db_path) == ("127.0.0.1", 8765, "push_site.db")
+    assert (config.host, config.port) == ("127.0.0.1", 8765)
+    assert config.db_path == str(tmp_path / "push_site.db")  # relative to the config file
     assert (config.feed_max_items, config.feed_max_days) == (200, 7.0)
     assert config.public_origin == "https://push.example.org"
     assert config.ingest_secret == SECRET.encode()
@@ -69,3 +70,7 @@ def test_world_readable_secret_warns(write, tmp_path, caplog):
 def test_missing_file(tmp_path):
     with pytest.raises(ConfigError, match="Could not read"):
         load_config(tmp_path / "nope.ini")
+
+
+def test_default_port_is_dropped_from_the_origin(write):
+    assert load_config(write(origin="https://Push.Example.org:443")).public_origin == "https://push.example.org"

@@ -8,6 +8,7 @@ import time
 from typing import Awaitable, Callable, Optional
 
 from aiohttp import web
+from aiohttp.web_protocol import RequestPayloadError
 
 from push_site.config import Config
 from push_site.storage import DEVICE_IDLE_LIMIT, Store
@@ -31,8 +32,13 @@ SECURITY_HEADERS = {
         "form-action 'self'; frame-ancestors 'none'"
     ),
     "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
+    # Not no-referrer: browsers then send "Origin: null" on the site's own
+    # POSTs, failing same_origin_guard. Invite links keep their token in
+    # the #fragment, which is never sent as a referrer.
+    "Referrer-Policy": "same-origin",
 }
+
+TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{43}")  # secrets.token_urlsafe(32), as invites and devices use
 
 CONFIG = web.AppKey("config", Config)
 STORE = web.AppKey("store", Store)
@@ -93,7 +99,7 @@ async def ingest(request: web.Request) -> web.Response:
     if "X-Forwarded-For" in request.headers or "Forwarded" in request.headers:
         raise web.HTTPNotFound()
     config = request.app[CONFIG]
-    body = await request.read()
+    body = await _read_body(request)
     headers = request.headers
     if not _signature_ok(config.ingest_secret, headers.get("X-Timestamp", ""), headers.get("X-Signature", ""), body):
         logger.warning("Rejected an ingest request with a bad or stale signature")
@@ -108,26 +114,27 @@ async def ingest(request: web.Request) -> web.Response:
     return web.Response(status=204)
 
 
-DEVICE = "device_id"  # request key: the signed-in device, set by api_guard
-
-
 @web.middleware
-async def api_guard(request: web.Request, handler):
+async def same_origin_guard(request: web.Request, handler):
     """Every /api/ request that changes something must come from the site's
-    own pages (Origin) as JSON; all but /api/redeem need a device cookie."""
-    if request.path.startswith("/api/"):
-        if request.method not in ("GET", "HEAD") and (
-            request.headers.get("Origin") != request.app[CONFIG].public_origin
-            or request.content_type != "application/json"
-        ):
-            raise web.HTTPForbidden()
-        if request.path != "/api/redeem":
-            token = request.cookies.get(COOKIE)
-            device_id = request.app[STORE].device_for_token(token) if token else None
-            if device_id is None:
-                raise web.HTTPUnauthorized()
-            request[DEVICE] = device_id
+    own pages (Origin) as JSON, which a cross-site form can't send."""
+    if request.path.startswith("/api/") and request.method not in ("GET", "HEAD") and (
+        request.headers.get("Origin") != request.app[CONFIG].public_origin
+        or request.content_type != "application/json"
+    ):
+        raise web.HTTPForbidden()
     return await handler(request)
+
+
+def signed_in(handler):
+    """For handlers that need a device cookie: called as handler(request, device_id)."""
+    async def check_cookie(request: web.Request) -> web.StreamResponse:
+        token = request.cookies.get(COOKIE, "")
+        device_id = request.app[STORE].device_for_token(token) if TOKEN_RE.fullmatch(token) else None
+        if device_id is None:
+            raise web.HTTPUnauthorized()
+        return await handler(request, device_id)
+    return check_cookie
 
 
 async def _add_security_headers(request: web.Request, response: web.StreamResponse) -> None:
@@ -136,10 +143,17 @@ async def _add_security_headers(request: web.Request, response: web.StreamRespon
         response.headers["Cache-Control"] = "no-store"
 
 
+async def _read_body(request: web.Request) -> bytes:
+    try:
+        return await request.read()
+    except RequestPayloadError:  # e.g. a body that doesn't match its Content-Encoding
+        raise web.HTTPBadRequest()
+
+
 async def _json_object(request: web.Request) -> dict:
     try:
-        data = await request.json()
-    except ValueError:
+        data = json.loads(await _read_body(request))
+    except (ValueError, RecursionError):
         data = None
     if not isinstance(data, dict):
         raise web.HTTPBadRequest(text="expected a JSON object")
@@ -155,7 +169,7 @@ async def redeem(request: web.Request) -> web.Response:
     """Swap an invite (from the #invite= part of an invite link, which never
     reaches the server's logs) for a device cookie."""
     invite = (await _json_object(request)).get("invite")
-    token = request.app[STORE].redeem_invite(invite) if isinstance(invite, str) and invite else None
+    token = request.app[STORE].redeem_invite(invite) if isinstance(invite, str) and TOKEN_RE.fullmatch(invite) else None
     if token is None:
         raise web.HTTPForbidden(text="This invite is invalid, used up or expired.")
     response = web.json_response({"ok": True})
@@ -163,15 +177,17 @@ async def redeem(request: web.Request) -> web.Response:
     return response
 
 
-async def me(request: web.Request) -> web.Response:
-    response = web.json_response({"label": request.app[STORE].device_label(request[DEVICE])})
+@signed_in
+async def me(request: web.Request, device_id: int) -> web.Response:
+    response = web.json_response({"label": request.app[STORE].device_label(device_id)})
     # Renewed whenever the app opens, so only a year of disuse signs a device out.
     _set_device_cookie(response, request.cookies[COOKIE])
     return response
 
 
-async def forget_me(request: web.Request) -> web.Response:
-    request.app[STORE].delete_device(request[DEVICE])
+@signed_in
+async def forget_me(request: web.Request, device_id: int) -> web.Response:
+    request.app[STORE].delete_device(device_id)
     response = web.Response(status=204)
     response.del_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="Strict")
     return response
@@ -183,7 +199,7 @@ async def _ignore(notification: dict) -> None:
 
 def create_app(config: Config, store: Store,
                on_notification: Optional[Callable[[dict], Awaitable[None]]] = None) -> web.Application:
-    app = web.Application(client_max_size=MAX_BODY, middlewares=[api_guard])
+    app = web.Application(client_max_size=MAX_BODY, middlewares=[same_origin_guard])
     app[CONFIG] = config
     app[STORE] = store
     app[ON_NOTIFICATION] = on_notification or _ignore

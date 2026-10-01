@@ -86,6 +86,7 @@ class Store:
         token = secrets.token_urlsafe(32)
         with self.db:
             self.db.execute("DELETE FROM invites WHERE expires_at <= ?", (now,))
+            self._delete_idle_devices(now)
             self.db.execute(
                 "INSERT INTO invites (token_hash, label, uses_left, expires_at) VALUES (?, ?, ?, ?)",
                 (_hash(token), label, uses, now + ttl),
@@ -98,12 +99,12 @@ class Store:
         now = time.time() if now is None else now
         with self.db:
             row = self.db.execute(
-                "UPDATE invites SET uses_left = uses_left - 1 "
-                "WHERE token_hash = ? AND uses_left > 0 AND expires_at > ? RETURNING label",
+                "SELECT label FROM invites WHERE token_hash = ? AND uses_left > 0 AND expires_at > ?",
                 (_hash(invite), now),
             ).fetchone()
             if row is None:
                 return None
+            self.db.execute("UPDATE invites SET uses_left = uses_left - 1 WHERE token_hash = ?", (_hash(invite),))
             self.db.execute("DELETE FROM invites WHERE uses_left <= 0")
             token = secrets.token_urlsafe(32)
             self.db.execute(
@@ -131,7 +132,13 @@ class Store:
         row = self.db.execute("SELECT label FROM devices WHERE id = ?", (device_id,)).fetchone()
         return row["label"] if row else None
 
-    def devices(self) -> List[sqlite3.Row]:
+    def _delete_idle_devices(self, now: float) -> None:
+        self.db.execute("DELETE FROM devices WHERE last_seen <= ?", (now - DEVICE_IDLE_LIMIT,))
+
+    def devices(self, now: Optional[float] = None) -> List[sqlite3.Row]:
+        """The signed-in devices; ones idle too long are deleted first."""
+        with self.db:
+            self._delete_idle_devices(time.time() if now is None else now)
         return self.db.execute("SELECT id, label, created_at, last_seen FROM devices ORDER BY id").fetchall()
 
     def delete_device(self, device_id: int) -> bool:
