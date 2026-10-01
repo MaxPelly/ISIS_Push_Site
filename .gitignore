@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Local config, secrets and data
+push_site.ini
+*.secret
+*.pem
+*.db
+*.db-wal
+*.db-shm

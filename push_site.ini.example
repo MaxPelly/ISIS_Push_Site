@@ -1,0 +1,19 @@
+# Copy to push_site.ini and edit. Relative paths are relative to the working directory.
+
+[SERVER]
+# Bind to localhost only; a reverse proxy (e.g. Caddy) terminates HTTPS in front.
+# host = 127.0.0.1
+# port = 8765
+# The public HTTPS origin phones load the site from (required).
+public_origin = https://push.example.org
+
+[SECRETS]
+# The same secret as the monitor's [PUSH] secret_file (at least 32 characters,
+# e.g. `openssl rand -hex 32`; surrounding whitespace is ignored). Keep it chmod 600.
+ingest_secret_file = push.secret
+
+[STORAGE]
+# db_path = push_site.db
+# How many recent notifications the feed keeps, and for how many days.
+# feed_max_items = 200
+# feed_max_days = 7

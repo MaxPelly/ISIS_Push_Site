@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isis-push-site"
+version = "0.1.0"
+description = "Mobile push notifications (PWA) for the ISIS Beam Monitor"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.9,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-aiohttp",
+]
+
+[tool.setuptools]
+packages = ["push_site"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
