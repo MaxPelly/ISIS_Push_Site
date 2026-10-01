@@ -3,8 +3,10 @@
 Every query is small and indexed, on a local file, so they run directly on
 the event loop rather than through a thread pool.
 """
+import hashlib
 import json
 import os
+import secrets
 import sqlite3
 import time
 from pathlib import Path
@@ -17,7 +19,28 @@ CREATE TABLE IF NOT EXISTS feed (
     payload TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS feed_received_at ON feed (received_at);
+-- Invite and device tokens are random, so a plain SHA-256 of each is stored.
+CREATE TABLE IF NOT EXISTS invites (
+    token_hash TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    uses_left INTEGER NOT NULL,
+    expires_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS devices (
+    id INTEGER PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    last_seen REAL NOT NULL
+);
 """
+
+DEVICE_IDLE_LIMIT = 365 * 86400  # a device unused for this long has to be invited again
+LAST_SEEN_RESOLUTION = 3600  # last_seen is only rewritten when this much older
+
+
+def _hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 class Store:
@@ -56,3 +79,57 @@ class Store:
         """The newest `limit` notifications, newest first."""
         rows = self.db.execute("SELECT payload FROM feed ORDER BY rowid DESC LIMIT ?", (max(limit, 0),))
         return [json.loads(row["payload"]) for row in rows]
+
+    def create_invite(self, label: str, uses: int, ttl: float, now: Optional[float] = None) -> str:
+        """A new invite token, valid for `uses` redemptions within `ttl` seconds."""
+        now = time.time() if now is None else now
+        token = secrets.token_urlsafe(32)
+        with self.db:
+            self.db.execute("DELETE FROM invites WHERE expires_at <= ?", (now,))
+            self.db.execute(
+                "INSERT INTO invites (token_hash, label, uses_left, expires_at) VALUES (?, ?, ?, ?)",
+                (_hash(token), label, uses, now + ttl),
+            )
+        return token
+
+    def redeem_invite(self, invite: str, now: Optional[float] = None) -> Optional[str]:
+        """Use up one redemption of an invite and register a new device;
+        returns the device's token, or None if the invite isn't valid."""
+        now = time.time() if now is None else now
+        with self.db:
+            row = self.db.execute(
+                "UPDATE invites SET uses_left = uses_left - 1 "
+                "WHERE token_hash = ? AND uses_left > 0 AND expires_at > ? RETURNING label",
+                (_hash(invite), now),
+            ).fetchone()
+            if row is None:
+                return None
+            self.db.execute("DELETE FROM invites WHERE uses_left <= 0")
+            token = secrets.token_urlsafe(32)
+            self.db.execute(
+                "INSERT INTO devices (token_hash, label, created_at, last_seen) VALUES (?, ?, ?, ?)",
+                (_hash(token), row["label"], now, now),
+            )
+        return token
+
+    def device_for_token(self, token: str, now: Optional[float] = None) -> Optional[int]:
+        """The id of the device with this token, if it's been used within
+        DEVICE_IDLE_LIMIT; keeps its last_seen (to the hour) up to date."""
+        now = time.time() if now is None else now
+        row = self.db.execute(
+            "SELECT id, last_seen FROM devices WHERE token_hash = ? AND last_seen > ?",
+            (_hash(token), now - DEVICE_IDLE_LIMIT),
+        ).fetchone()
+        if row is None:
+            return None
+        if now - row["last_seen"] >= LAST_SEEN_RESOLUTION:
+            with self.db:
+                self.db.execute("UPDATE devices SET last_seen = ? WHERE id = ?", (now, row["id"]))
+        return row["id"]
+
+    def devices(self) -> List[sqlite3.Row]:
+        return self.db.execute("SELECT id, label, created_at, last_seen FROM devices ORDER BY id").fetchall()
+
+    def delete_device(self, device_id: int) -> bool:
+        with self.db:
+            return self.db.execute("DELETE FROM devices WHERE id = ?", (device_id,)).rowcount == 1
