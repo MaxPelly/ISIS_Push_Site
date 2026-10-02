@@ -31,59 +31,55 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
   - The pages have a strict Content Security Policy (no inline script or style) and set all text with `textContent`.
   - `nosniff`, `Referrer-Policy: same-origin` and `frame-ancestors 'none'` are set on every response.
 - **Server:**
-  - The server binds to localhost and runs as its own user in a systemd sandbox.
+  - The server binds to localhost and runs in a systemd sandbox that can only write to its own directory.
   - Secrets, the VAPID key and the database are owner-only files.
 
 ## Setup
 
-These steps assume the monitor is checked out at `/opt/ISIS_Beam_Monitor` with this repo as its `push_site` submodule (`git submodule update --init push_site`). The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
+These steps run everything as the `claude` user, with the monitor checked out at `/home/claude/ISIS_Beam_Monitor` and this repo as its `push_site` submodule (`git submodule update --init push_site`). The site's config, secret, VAPID key and database all live in `/home/claude/ISIS_Beam_Monitor/push_site`, and git ignores them. The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
 
-1. **Install the code and a user to run it.** The `pushsite` user must be able to read the checkout (the default umask 022 allows this).
+1. **Install the code:**
    ```bash
    sudo apt install python3-venv   # on Debian/Ubuntu, if venv isn't available yet
-   cd /opt/ISIS_Beam_Monitor/push_site
+   cd /home/claude/ISIS_Beam_Monitor/push_site
    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-   sudo useradd --system --home /var/lib/isis-push-site --shell /usr/sbin/nologin pushsite
-   sudo install -d -o pushsite -g pushsite -m 700 /var/lib/isis-push-site
    ```
 
-2. **Create the shared secret** and give the daemon and the site their own copies, each readable only by the user that needs it. Surrounding whitespace in the files is ignored. The monitor's `.gitignore` covers `*.secret`, so the daemon's copy can't be committed by accident.
+2. **Create the shared secret.** The daemon runs as the same user, so it reads this same file. Surrounding whitespace in it is ignored.
    ```bash
-   (umask 077; openssl rand -hex 32 > /tmp/push.secret)
-   sudo install -o pushsite -g pushsite -m 600 /tmp/push.secret /var/lib/isis-push-site/push.secret
-   sudo install -o <daemon-user> -m 600 /tmp/push.secret /opt/ISIS_Beam_Monitor/push.secret
-   rm /tmp/push.secret
+   (umask 077; openssl rand -hex 32 > push.secret)
    ```
 
 3. **Configure the site:**
-   - Create the config from the example: `sudo install -o pushsite -g pushsite -m 600 push_site.ini.example /var/lib/isis-push-site/push_site.ini`, then edit it with `sudoedit`.
+   - Create the config from the example with `(umask 077; cp push_site.ini.example push_site.ini)`.
    - Set `public_origin` (e.g. `https://push.example.org`) and `vapid_subject` (a `mailto:` address push services can use to reach you).
    - Relative paths in it are relative to the file.
    - Create the VAPID key once. Replacing it later makes every device subscribe again.
    ```bash
-   sudo -u pushsite .venv/bin/python -m push_site vapid /var/lib/isis-push-site/push_site.ini
+   .venv/bin/python -m push_site vapid push_site.ini
    ```
 
 4. **Run it:**
-   - Copy `deploy/isis-push-site.service` to `/etc/systemd/system/`, adjusting the paths if needed, then run `sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site`. Logs are in `journalctl -u isis-push-site`.
+   - Copy `deploy/isis-push-site.service` to `/etc/systemd/system/`, then run `sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site`. Logs are in `journalctl -u isis-push-site`.
    - Set up Caddy with `deploy/Caddyfile`, using your host name. Caddy fetches the certificate itself.
    - Any reverse proxy works if it terminates HTTPS, refuses `/ingest`, adds `X-Forwarded-For`, and forwards the rest to `127.0.0.1:8765`. The site refuses forwarded `/ingest` requests as a backstop.
 
-5. **Point the monitor at it** in the monitor's `config.ini`, then restart the daemon. A relative `secret_file` is relative to the daemon's working directory, so an absolute path is safest:
+5. **Point the monitor at it** in the monitor's `config.ini`, then restart the daemon:
    ```ini
    [PUSH]
    url = http://127.0.0.1:8765/ingest
-   secret_file = /opt/ISIS_Beam_Monitor/push.secret
+   secret_file = /home/claude/ISIS_Beam_Monitor/push_site/push.secret
    ```
 
 ## Inviting people
 
+From `/home/claude/ISIS_Beam_Monitor/push_site`:
+
 ```bash
-cd /opt/ISIS_Beam_Monitor/push_site
-sudo -u pushsite .venv/bin/python -m push_site invite /var/lib/isis-push-site/push_site.ini --label "Alex's phone"
+.venv/bin/python -m push_site invite push_site.ini --label "Alex's phone"
 # --uses N lets N devices join with one link; --days D sets how long it's valid (default 7)
-sudo -u pushsite .venv/bin/python -m push_site devices /var/lib/isis-push-site/push_site.ini
-sudo -u pushsite .venv/bin/python -m push_site revoke /var/lib/isis-push-site/push_site.ini 3
+.venv/bin/python -m push_site devices push_site.ini
+.venv/bin/python -m push_site revoke push_site.ini 3
 ```
 
 The admin commands refuse to run as root, since files they created would then be unwritable by the site.

@@ -1,36 +1,36 @@
-# Example systemd unit. Install as /etc/systemd/system/isis-push-site.service,
-# adjust the code path, then: systemctl daemon-reload && systemctl enable --now isis-push-site
-#
-# Everything the site writes (database) and reads privately (config, secrets,
-# VAPID key) lives in /var/lib/isis-push-site, owned by the pushsite user.
+# ISIS push notification site, run as claude from the monitor's push_site
+# submodule. Its config (push_site.ini), secret, VAPID key and database all
+# live in that directory (all gitignored).
+# Install: sudo cp isis-push-site.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site
+# Logs:    journalctl -u isis-push-site
 
 [Unit]
 Description=ISIS Beam Monitor push notification site
 After=network-online.target
 Wants=network-online.target
-# A config error makes it exit straight away: stop retrying after 5 tries in a minute.
+# Give up if it fails to start 5 times in a minute (e.g. a config error).
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
 [Service]
-User=pushsite
-Group=pushsite
-# Where the push_site code is, e.g. the monitor's push_site submodule
-# (not under /home: ProtectHome below hides it).
-WorkingDirectory=/opt/ISIS_Beam_Monitor/push_site
-ExecStart=/opt/ISIS_Beam_Monitor/push_site/.venv/bin/python -m push_site serve /var/lib/isis-push-site/push_site.ini
+Type=simple
+User=claude
+Group=claude
+WorkingDirectory=/home/claude/ISIS_Beam_Monitor/push_site
+ExecStart=/home/claude/ISIS_Beam_Monitor/push_site/.venv/bin/python -m push_site serve /home/claude/ISIS_Beam_Monitor/push_site/push_site.ini
+Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 RestartSec=5
-
-StateDirectory=isis-push-site
-StateDirectoryMode=0700
 UMask=0077
 
-# Sandboxing: the site only needs its state directory and outbound HTTPS.
+# Sandboxing: it only writes its database in its own directory, and only
+# needs localhost (from Caddy and the daemon) and outbound HTTPS to push services.
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectSystem=strict
-ProtectHome=yes
+ProtectHome=read-only
+ReadWritePaths=/home/claude/ISIS_Beam_Monitor/push_site
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes

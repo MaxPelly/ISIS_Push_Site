@@ -104,7 +104,7 @@ def main(argv=None) -> None:
     args = parser.parse_args(argv)
     if os.geteuid() == 0:
         # Files it created would be root's, and the site couldn't write them.
-        raise SystemExit("Run this as the site's own user, not root (e.g. sudo -u pushsite ...).")
+        raise SystemExit("Run this as the user the site runs as, not root.")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
