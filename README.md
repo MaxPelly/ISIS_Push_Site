@@ -61,7 +61,7 @@ These steps run everything as the `claude` user, with the monitor checked out at
 
 4. **Run it:**
    - Copy `deploy/isis-push-site.service` to `/etc/systemd/system/`, then run `sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site`. Logs are in `journalctl -u isis-push-site`.
-   - Set up Caddy with `deploy/Caddyfile`, using your host name. Caddy fetches the certificate itself.
+   - Set up Caddy with `deploy/Caddyfile`, using your host name. That file assumes Cloudflare's proxy is in front (see below). Without Cloudflare, delete its `tls` line and Caddy gets a certificate itself.
    - Any reverse proxy works if it terminates HTTPS, refuses `/ingest`, adds `X-Forwarded-For`, and forwards the rest to `127.0.0.1:8765`. The site refuses forwarded `/ingest` requests as a backstop.
 
 5. **Point the monitor at it** in the monitor's `config.ini`, then restart the daemon:
@@ -70,6 +70,29 @@ These steps run everything as the `claude` user, with the monitor checked out at
    url = http://127.0.0.1:8765/ingest
    secret_file = /home/claude/ISIS_Beam_Monitor/push_site/push.secret
    ```
+
+### Behind Cloudflare's proxy
+
+With a proxied (orange-cloud) DNS record in front of Caddy, set `public_origin` to the Cloudflare hostname as usual. Then, in Cloudflare:
+
+- **Certificate:**
+  - Set SSL/TLS mode to **Full (strict)**.
+  - Create an **Origin Certificate** (SSL/TLS > Origin Server), save it as `/etc/caddy/cf-origin.pem` and `/etc/caddy/cf-origin.key`, and make both readable by the `caddy` user.
+  - Caddy's own Let's Encrypt challenges don't get through the proxy.
+- **For this hostname, turn off anything that rewrites pages:**
+  - Rocket Loader
+  - Email Obfuscation
+  - Web Analytics auto-injection
+  - Bot Fight Mode, or any challenge covering `/api/*`
+
+  The first three inject or rewrite scripts, which the site's Content Security Policy blocks. A challenge page breaks the app's API calls.
+- **Caching:** don't add "Cache Everything" rules. Cloudflare's default follows the site's `Cache-Control` headers, which keep pages, scripts and API responses uncached.
+- **Optional extras:**
+  - A rate limiting rule on `/api/*`, e.g. 60 requests a minute per IP.
+  - A WAF rule blocking `/ingest`.
+  - Allowing port 443 on the server only from Cloudflare's IP ranges, or turning on Authenticated Origin Pulls.
+
+Nothing in the site or the monitor needs changing. The daemon still posts to `127.0.0.1` directly, and the site also refuses `/ingest` requests that carry Cloudflare's `CF-Connecting-IP` header.
 
 ## Inviting people
 

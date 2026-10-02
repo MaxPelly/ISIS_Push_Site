@@ -1,7 +1,13 @@
-# Example Caddy site: HTTPS (certificates are automatic), in front of the
-# push site on localhost. The monitor daemon posts to /ingest directly on
-# 127.0.0.1:8765, so that path is never served publicly.
+# Example Caddy site behind Cloudflare's proxy (a proxied DNS record, with
+# Cloudflare's SSL mode set to "Full (strict)"). The monitor daemon posts to
+# /ingest directly on 127.0.0.1:8765, so that path is never served publicly.
 push.example.org {
+	# A Cloudflare Origin Certificate (SSL/TLS > Origin Server), readable by
+	# the caddy user. Caddy's own Let's Encrypt challenges can't get through
+	# the proxy. Without Cloudflare, delete this line and Caddy gets a
+	# certificate itself.
+	tls /etc/caddy/cf-origin.pem /etc/caddy/cf-origin.key
+
 	@ingest path /ingest /ingest/*
 	respond @ingest 404
 
@@ -17,18 +23,7 @@ push.example.org {
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8765
 
-	# Optional rate limiting needs Caddy built with the caddy-ratelimit plugin
-	# (xcaddy build --with github.com/mholt/caddy-ratelimit) and a global
-	# `{ order rate_limit before basic_auth }` block at the top of the file.
-	# Tokens are 256-bit, so this only guards against load, not guessing.
-	# rate_limit {
-	# 	zone api {
-	# 		match {
-	# 			path /api/*
-	# 		}
-	# 		key {remote_host}
-	# 		events 60
-	# 		window 1m
-	# 	}
-	# }
+	# Rate limiting is best done with a Cloudflare rate limiting rule on
+	# /api/*: behind the proxy, Caddy sees Cloudflare's addresses, not the
+	# phones'.
 }
