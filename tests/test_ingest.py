@@ -39,7 +39,7 @@ async def test_unsigned_or_tampered_requests_are_rejected(site):
     assert (await site.post("/ingest", **request)).status == 401
 
 
-@pytest.mark.parametrize("header", ["X-Forwarded-For", "Forwarded"])
+@pytest.mark.parametrize("header", ["X-Forwarded-For", "Forwarded", "CF-Connecting-IP"])
 async def test_forwarded_requests_are_refused(site, header):
     request = signed(payload())
     request["headers"][header] = "for=203.0.113.9"

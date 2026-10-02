@@ -109,11 +109,15 @@ def _signature_ok(secret: bytes, timestamp: str, signature: str, body: bytes) ->
     return hmac.compare_digest(expected, signature)
 
 
+# Set by reverse proxies and Cloudflare; the monitor's direct requests have none.
+_PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "CF-Connecting-IP")
+
+
 async def ingest(request: web.Request) -> web.Response:
     """Take a signed notification from the monitor daemon, which calls the
     site directly on localhost. The reverse proxy should refuse this path;
     a forwarded request is refused here too, in case it doesn't."""
-    if "X-Forwarded-For" in request.headers or "Forwarded" in request.headers:
+    if any(h in request.headers for h in _PROXY_HEADERS):
         raise web.HTTPNotFound()
     config = request.app[CONFIG]
     body = await _read_body(request)
