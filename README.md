@@ -33,7 +33,8 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
   - The pages have a strict Content Security Policy (no inline script or style) and set all text with `textContent`.
   - `nosniff`, `Referrer-Policy: same-origin` and `frame-ancestors 'none'` are set on every response.
 - **Server:**
-  - The server binds to localhost and runs in a systemd sandbox that can only write to its own directory.
+  - The server binds to localhost (or to every interface, for a reverse proxy in a container) and runs in a systemd sandbox that can only write to its own directory.
+  - `/ingest` only answers requests from a loopback address that carry no proxy headers, whatever the server binds to.
   - Secrets, the VAPID key and the database are owner-only files.
 
 ## Setup
@@ -65,6 +66,7 @@ These steps run everything as the `claude` user, with the monitor checked out at
    - Copy `deploy/isis-push-site.service` to `/etc/systemd/system/`, then run `sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site`. Logs are in `journalctl -u isis-push-site`.
    - Set up Caddy with `deploy/Caddyfile`, using your host name. That file assumes Cloudflare's proxy is in front (see below). Without Cloudflare, delete its `tls` line and Caddy gets a certificate itself.
    - Any reverse proxy works if it terminates HTTPS, refuses `/ingest`, adds `X-Forwarded-For`, and forwards the rest to `127.0.0.1:8765`. The site refuses forwarded `/ingest` requests as a backstop.
+   - If Caddy runs in Docker, set `host = 0.0.0.0` and proxy to `host.docker.internal:8765` (with `extra_hosts: ["host.docker.internal:host-gateway"]` on Linux). The site still only takes `/ingest` from loopback. Keep port 8765 closed in the server's firewall.
 
 5. **Point the monitor at it** in the monitor's `config.ini`, then restart the daemon:
    ```ini
@@ -94,7 +96,7 @@ With a proxied (orange-cloud) DNS record in front of Caddy, set `public_origin` 
   - A WAF rule blocking `/ingest`.
   - Allowing port 443 on the server only from Cloudflare's IP ranges, or turning on Authenticated Origin Pulls.
 
-Nothing in the site or the monitor needs changing. The daemon still posts to `127.0.0.1` directly, and the site also refuses `/ingest` requests that carry Cloudflare's `CF-Connecting-IP` header.
+Nothing in the site or the monitor needs changing. The daemon still posts to `127.0.0.1` directly, and the site only takes `/ingest` from loopback without proxy headers such as Cloudflare's `CF-Connecting-IP`.
 
 ## Inviting people
 

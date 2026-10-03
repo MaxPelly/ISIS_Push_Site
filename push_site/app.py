@@ -3,6 +3,7 @@ import base64
 import binascii
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import re
@@ -113,11 +114,23 @@ def _signature_ok(secret: bytes, timestamp: str, signature: str, body: bytes) ->
 _PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "CF-Connecting-IP")
 
 
+def _direct_from_localhost(request: web.Request) -> bool:
+    """A loopback peer, and no proxy in between. The site may listen on
+    every interface (e.g. for a reverse proxy in a container), so the
+    peer's address is checked as well as the headers, which anything
+    reaching the port directly could simply leave out."""
+    try:
+        loopback = ipaddress.ip_address(request.remote or "").is_loopback
+    except ValueError:
+        return False
+    return loopback and not any(h in request.headers for h in _PROXY_HEADERS)
+
+
 async def ingest(request: web.Request) -> web.Response:
     """Take a signed notification from the monitor daemon, which calls the
     site directly on localhost. The reverse proxy should refuse this path;
-    a forwarded request is refused here too, in case it doesn't."""
-    if any(h in request.headers for h in _PROXY_HEADERS):
+    any other request is refused here too, in case it doesn't."""
+    if not _direct_from_localhost(request):
         raise web.HTTPNotFound()
     config = request.app[CONFIG]
     body = await _read_body(request)
