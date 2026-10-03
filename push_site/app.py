@@ -121,10 +121,12 @@ def _direct_from_localhost(request: web.Request) -> bool:
     peer's address is checked as well as the headers, which anything
     reaching the port directly could simply leave out."""
     try:
-        loopback = ipaddress.ip_address(request.remote or "").is_loopback
+        ip = ipaddress.ip_address(request.remote or "")
     except ValueError:
         return False
-    return loopback and not any(h in request.headers for h in _PROXY_HEADERS)
+    if ip.version == 6 and ip.ipv4_mapped:  # how a dual-stack (::) socket sees IPv4 peers
+        ip = ip.ipv4_mapped
+    return ip.is_loopback and not any(h in request.headers for h in _PROXY_HEADERS)
 
 
 async def ingest(request: web.Request) -> web.Response:

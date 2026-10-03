@@ -55,6 +55,12 @@ async def test_requests_from_other_hosts_are_refused(site, monkeypatch, remote):
     assert site.received == []
 
 
+@pytest.mark.parametrize("remote", ["127.0.0.1", "::1", "::ffff:127.0.0.1"])
+async def test_requests_from_loopback_are_taken(site, monkeypatch, remote):
+    monkeypatch.setattr(web.Request, "remote", property(lambda self: remote))
+    assert (await site.post("/ingest", **signed(payload()))).status == 204
+
+
 async def test_oversized_body_is_refused(site):
     assert (await site.post("/ingest", **signed(payload(text="é" * 20_000)))).status == 204  # 40 KB
     assert (await site.post("/ingest", **signed(payload(id="2", text="x" * 70_000)))).status == 413
