@@ -22,6 +22,11 @@ CONCURRENCY = 10  # pushes in flight at once
 SEND_TIMEOUT = 10.0  # seconds per push request
 TTL = 3600  # how long a push service keeps trying an offline device, in seconds
 MAX_TITLE, MAX_BODY = 120, 300  # characters; keeps payloads well under Web Push's 4 KB
+# A subscription is dropped after this many refusals in a row (e.g. 400 or 403,
+# which resending won't fix). Not at once: a site-wide fault, such as a bad
+# VAPID setup, would otherwise wipe every device. The app re-sends its
+# subscription whenever it's opened, so a dropped device can recover.
+MAX_REFUSALS = 20
 
 
 def generate_vapid_key(path: Path) -> Vapid02:
@@ -82,6 +87,7 @@ class Pusher:
         self.vapid = vapid
         self.subject = subject
         self._queue: asyncio.Queue = asyncio.Queue(QUEUE_SIZE)
+        self._refusals: dict = {}  # endpoint -> consecutive refusals
 
     def enqueue(self, notification: dict) -> None:
         if self._queue.full():
@@ -133,11 +139,18 @@ class Pusher:
                     aiohttp_session=session,
                     timeout=SEND_TIMEOUT,
                 )
+                self._refusals.pop(target["endpoint"], None)
             except WebPushException as exc:
+                endpoint = target["endpoint"]
                 status = exc.response.status if exc.response is not None else None
-                if status in (404, 410):  # the browser unsubscribed or the subscription expired
-                    self.store.delete_endpoint(target["endpoint"])
-                    logger.info(f"Removed device {target['device_id']}'s expired push subscription")
+                if status is not None and 400 <= status < 500 and status != 429:
+                    self._refusals[endpoint] = self._refusals.get(endpoint, 0) + 1
+                else:  # a server error: the push service may be having a bad day
+                    self._refusals.pop(endpoint, None)
+                if status in (404, 410) or self._refusals.get(endpoint, 0) >= MAX_REFUSALS:  # 404/410: unsubscribed
+                    self.store.delete_endpoint(endpoint)
+                    self._refusals.pop(endpoint, None)
+                    logger.info(f"Removed device {target['device_id']}'s push subscription (HTTP {status})")
                 else:  # no endpoint in the log: it's a bearer capability for that device
                     logger.warning(f"Push to device {target['device_id']} failed: HTTP {status}")
             except (aiohttp.ClientError, asyncio.TimeoutError) as exc:

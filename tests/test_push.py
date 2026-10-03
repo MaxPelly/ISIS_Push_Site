@@ -116,6 +116,23 @@ async def test_gone_subscriptions_are_removed(store, vapid, caplog, status, kept
     assert "secret-endpoint" not in caplog.text
 
 
+@pytest.mark.parametrize("statuses, kept", [
+    ([403] * push.MAX_REFUSALS, False),
+    ([403] * (push.MAX_REFUSALS - 1), True),
+    ([403] * (push.MAX_REFUSALS - 1) + [None] + [403], True),  # a success resets the count
+    ([403] * (push.MAX_REFUSALS - 1) + [503] + [403], True),  # so does a server error
+    ([429] * push.MAX_REFUSALS, True),  # rate limited isn't refused
+])
+async def test_repeatedly_refused_subscriptions_are_removed(store, vapid, statuses, kept):
+    add_device(store, "https://fcm.googleapis.com/x")
+    pusher = Pusher(store, vapid, SUBJECT)
+    for status in statuses:
+        error = status and WebPushException("failed", response=MagicMock(status=status))
+        with patch.object(push, "webpush_async", new=AsyncMock(side_effect=error)):
+            await pusher.fan_out(MagicMock(), notification())
+    assert bool(store.push_targets()) is kept
+
+
 async def test_network_errors_are_logged_and_other_devices_still_get_theirs(store, vapid, caplog):
     for name in "ab":
         add_device(store, f"https://fcm.googleapis.com/{name}")
