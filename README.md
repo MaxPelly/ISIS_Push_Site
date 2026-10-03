@@ -1,3 +1,5 @@
+>  **Note:** This branch includes AI-assisted code generation. Treat it with appropriate caution.
+
 # ISIS Push Site
 
 Mobile push notifications for the ISIS Beam Monitor, as a small installable web app (PWA).
