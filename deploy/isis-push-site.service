@@ -1,6 +1,7 @@
-# ISIS push notification site, run as claude from the monitor's push_site
-# submodule. Its config (push_site.ini), secret and VAPID key live in that
-# directory, and its database in data/ under it (all gitignored).
+# ISIS push notification site, run from the monitor's push_site submodule as
+# its own user, isis-push (in group claude, to read the code, config, secret
+# and VAPID key there), so a compromise can't act as claude. Its database is
+# in data/ under it, owned by isis-push (all gitignored).
 # Install: sudo cp isis-push-site.service /etc/systemd/system/
 #          sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site
 # Logs:    journalctl -u isis-push-site
@@ -15,8 +16,8 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=claude
-Group=claude
+User=isis-push
+Group=isis-push
 WorkingDirectory=/home/claude/ISIS_Beam_Monitor/push_site
 ExecStart=/home/claude/ISIS_Beam_Monitor/push_site/.venv/bin/python -m push_site serve /home/claude/ISIS_Beam_Monitor/push_site/push_site.ini
 Environment=PYTHONUNBUFFERED=1

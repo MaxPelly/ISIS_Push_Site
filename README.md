@@ -33,20 +33,21 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
   - The pages have a strict Content Security Policy (no inline script or style) and set all text with `textContent`.
   - `nosniff`, `Referrer-Policy: same-origin`, `frame-ancestors 'none'` and a `Permissions-Policy` turning off the camera, microphone and location are set on every response.
 - **Server:**
-  - The server binds to localhost (or to every interface, for a reverse proxy in a container) and runs in a systemd sandbox that can't see the rest of `/home` and can only write to its `data/` directory.
+  - The server binds to localhost (or to every interface, for a reverse proxy in a container) and runs as its own user in a systemd sandbox that can't see the rest of `/home` and can only write to its `data/` directory.
   - `/ingest` only answers requests from a loopback address that carry no proxy headers, whatever the server binds to.
   - Secrets, the VAPID key and the database are owner-only files.
 
 ## Setup
 
-These steps run everything as the `claude` user, with the monitor checked out at `/home/claude/ISIS_Beam_Monitor` and this repo as its `push_site` submodule (`git submodule update --init push_site`). The site's config, secret and VAPID key live in `/home/claude/ISIS_Beam_Monitor/push_site`, its database in `data/` there, and git ignores them all. The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
+These steps assume the monitor runs as the `claude` user, checked out at `/home/claude/ISIS_Beam_Monitor` with this repo as its `push_site` submodule (`git submodule update --init push_site`). The site runs as its own user, `isis-push`, in group `claude`: sharing the monitor's user would let a compromised site act as it (e.g. through `/proc/<pid>/root`). The site's config, secret and VAPID key live in `/home/claude/ISIS_Beam_Monitor/push_site`, readable by the group; its database is in `data/` there, owned by `isis-push`. Git ignores them all. The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
 
 1. **Install the code:**
    ```bash
    sudo apt install python3-venv   # on Debian/Ubuntu, if venv isn't available yet
    cd /home/claude/ISIS_Beam_Monitor/push_site
    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-   mkdir -m 700 data   # the database's directory, the only one the systemd unit can write to
+   sudo useradd --system --no-create-home --shell /usr/sbin/nologin --groups claude isis-push
+   sudo install -d -m 700 -o isis-push -g isis-push data   # the only directory the unit can write to
    ```
 
 2. **Create the shared secret.** The daemon runs as the same user, so it reads this same file. Surrounding whitespace in it is ignored.
@@ -61,6 +62,7 @@ These steps run everything as the `claude` user, with the monitor checked out at
    - Create the VAPID key once. Replacing it later makes every device subscribe again.
    ```bash
    .venv/bin/python -m push_site vapid push_site.ini
+   chmod 640 push_site.ini push.secret vapid.pem   # readable by isis-push through the group
    ```
 
 4. **Run it:**
@@ -101,13 +103,13 @@ Nothing in the site or the monitor needs changing. The daemon still posts to `12
 
 ## Inviting people
 
-From `/home/claude/ISIS_Beam_Monitor/push_site`:
+From `/home/claude/ISIS_Beam_Monitor/push_site`, as `isis-push`, which owns the database:
 
 ```bash
-.venv/bin/python -m push_site invite push_site.ini --label "Alex's phone"
+sudo -u isis-push .venv/bin/python -m push_site invite push_site.ini --label "Alex's phone"
 # --uses N lets N devices join with one link; --days D sets how long it's valid (default 7)
-.venv/bin/python -m push_site devices push_site.ini
-.venv/bin/python -m push_site revoke push_site.ini 3
+sudo -u isis-push .venv/bin/python -m push_site devices push_site.ini
+sudo -u isis-push .venv/bin/python -m push_site revoke push_site.ini 3
 ```
 
 The admin commands refuse to run as root, since files they created would then be unwritable by the site.
