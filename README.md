@@ -135,12 +135,11 @@ The body is UTF-8 JSON, at most 64 KB:
 {
   "v": 1,
   "id": "<uuid4: lower-case hex and dashes>",
-  "title": "...", "text": "...", "summary": "...",
+  "title": "...", "text": "...",
   "severity": "info | good | warning | attention",
   "emoji": "...", "facts": [["key", "value"]], "flavour": "",
   "url": "https://... or null", "url_label": "Open",
   "timestamp": "<ISO 8601> or null",
-  "channel": "...",
   "topic": "TS1 | TS2 | Muons | MCR | Summary | <instrument name>"
 }
 ```

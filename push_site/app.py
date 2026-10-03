@@ -22,14 +22,14 @@ from push_site.storage import DEVICE_IDLE_LIMIT, Store
 
 logger = logging.getLogger(__name__)
 
-# Every request this site accepts is small; MCR news text (sent as both
-# text and summary) is the largest thing the monitor sends.
+# Every request this site accepts is small; MCR news text is the largest
+# thing the monitor sends.
 MAX_BODY = 64 * 1024
 MAX_CLOCK_SKEW = 60  # seconds an ingest request's X-Timestamp may be off by
 SEVERITIES = ("info", "good", "warning", "attention")
 _ID_RE = re.compile(r"[0-9a-f-]{1,64}")  # the monitor sends uuid4s; ids also end up in URLs
 MAX_TOPIC_LENGTH = 64
-_TEXT_FIELDS = ("title", "text", "summary", "emoji", "flavour", "url_label", "channel", "topic")
+_TEXT_FIELDS = ("title", "text", "emoji", "flavour", "url_label", "topic")
 
 STATIC = Path(__file__).parent / "static"
 
