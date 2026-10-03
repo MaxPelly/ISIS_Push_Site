@@ -62,6 +62,7 @@ def _hash(token: str) -> str:
 class Store:
     def __init__(self, path: Path):
         if str(path) != ":memory:" and not path.exists():
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             # Created owner-only; SQLite gives the -wal/-shm files the same mode.
             os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
         self.db = sqlite3.connect(path)  # each `with self.db:` block is one transaction

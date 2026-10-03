@@ -13,3 +13,4 @@ push_site.ini
 *.db
 *.db-wal
 *.db-shm
+data/

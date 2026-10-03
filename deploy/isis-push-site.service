@@ -1,6 +1,6 @@
 # ISIS push notification site, run as claude from the monitor's push_site
-# submodule. Its config (push_site.ini), secret, VAPID key and database all
-# live in that directory (all gitignored).
+# submodule. Its config (push_site.ini), secret and VAPID key live in that
+# directory, and its database in data/ under it (all gitignored).
 # Install: sudo cp isis-push-site.service /etc/systemd/system/
 #          sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site
 # Logs:    journalctl -u isis-push-site
@@ -9,9 +9,9 @@
 Description=ISIS Beam Monitor push notification site
 After=network-online.target
 Wants=network-online.target
-# Give up if it fails to start 5 times in a minute (e.g. a config error).
-StartLimitIntervalSec=60
-StartLimitBurst=5
+# Never give up restarting (a start limit could leave it down for good after a
+# brief outage); RestartSteps backs off from 5s to 5min instead.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -22,15 +22,21 @@ ExecStart=/home/claude/ISIS_Beam_Monitor/push_site/.venv/bin/python -m push_site
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 RestartSec=5
+RestartSteps=6
+RestartMaxDelaySec=5min
 UMask=0077
+MemoryMax=256M
 
-# Sandboxing: it only writes its database in its own directory, and only
-# needs localhost (from Caddy and the daemon) and outbound HTTPS to push services.
+# Sandboxing: it can't see the rest of /home, can't change its own code or
+# secrets, and can only write its database in data/. It needs only inbound
+# connections (from Caddy and the daemon) and outbound HTTPS to push services.
+# If the venv is outside the site's directory, add it to BindReadOnlyPaths.
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=/home/claude/ISIS_Beam_Monitor/push_site
+ProtectHome=tmpfs
+BindReadOnlyPaths=/home/claude/ISIS_Beam_Monitor/push_site
+BindPaths=/home/claude/ISIS_Beam_Monitor/push_site/data
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes
@@ -46,6 +52,8 @@ RestrictRealtime=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
 SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
 
 [Install]
 WantedBy=multi-user.target

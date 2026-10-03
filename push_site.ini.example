@@ -18,7 +18,8 @@ ingest_secret_file = push.secret
 vapid_subject = mailto:admin@example.org
 
 [STORAGE]
-# db_path = push_site.db
+# In its own directory, the only one the systemd unit lets the site write to.
+db_path = data/push_site.db
 # How many recent notifications the feed keeps (at least 50), and for how many days.
 # feed_max_items = 200
 # feed_max_days = 7
