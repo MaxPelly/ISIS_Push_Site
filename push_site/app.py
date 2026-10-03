@@ -328,17 +328,12 @@ def _file(name: str, content_type: str, cache: str = "no-cache"):
     return handler
 
 
-def _ignore(notification: dict) -> None:
-    pass
-
-
-def create_app(config: Config, store: Store,
-               on_notification: Optional[Callable[[dict], None]] = None,
-               vapid_public_key: str = "") -> web.Application:
+def create_app(config: Config, store: Store, on_notification: Callable[[dict], None],
+               vapid_public_key: str) -> web.Application:
     app = web.Application(client_max_size=MAX_BODY, middlewares=[same_origin_guard])
     app[CONFIG] = config
     app[STORE] = store
-    app[ON_NOTIFICATION] = on_notification or _ignore
+    app[ON_NOTIFICATION] = on_notification
     app[VAPID_PUBLIC_KEY] = vapid_public_key
     app.on_response_prepare.append(_add_security_headers)
     app.router.add_post("/ingest", ingest)

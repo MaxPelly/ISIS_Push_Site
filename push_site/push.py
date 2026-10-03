@@ -21,7 +21,7 @@ QUEUE_SIZE = 100  # notifications waiting to be sent; the oldest is dropped when
 CONCURRENCY = 10  # pushes in flight at once
 SEND_TIMEOUT = 10.0  # seconds per push request
 TTL = 3600  # how long a push service keeps trying an offline device, in seconds
-MAX_TITLE, MAX_BODY = 120, 300  # characters; keeps payloads well under Web Push's 4 KB
+MAX_TITLE, MAX_TEXT = 120, 300  # characters; keeps payloads well under Web Push's 4 KB
 # A subscription is dropped after this many refusals in a row (e.g. 400 or 403,
 # which resending won't fix). Not at once: a site-wide fault, such as a bad
 # VAPID setup, would otherwise wipe every device. The app re-sends its
@@ -66,7 +66,7 @@ def push_payload(notification: dict) -> str:
     return json.dumps({
         "id": notification["id"],
         "title": title[:MAX_TITLE],
-        "body": body if len(body) <= MAX_BODY else body[:MAX_BODY - 1] + "…",
+        "body": body if len(body) <= MAX_TEXT else body[:MAX_TEXT - 1] + "…",
         "severity": notification["severity"],
     }, ensure_ascii=False)  # escaped, each emoji would take 12 bytes of the 4 KB
 
