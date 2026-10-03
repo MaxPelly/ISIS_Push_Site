@@ -3,7 +3,7 @@
 # ACLs give it read-only access to the code, config, secret and VAPID key, and
 # its database is in data/, owned by it (see the README's setup steps).
 # EDIT before installing: /path/to/ISIS_Beam_Monitor is the monitor's checkout.
-#   sed "s|/path/to/ISIS_Beam_Monitor|$MONITOR_DIR|g" deploy/isis-push-site.service \
+#   sed "/^#/!s|/path/to/ISIS_Beam_Monitor|$MONITOR_DIR|g" deploy/isis-push-site.service \
 #     | sudo tee /etc/systemd/system/isis-push-site.service
 # Then:    sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site
 # Logs:    journalctl -u isis-push-site

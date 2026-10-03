@@ -54,7 +54,7 @@ def read_secret(path: Path, what: str) -> bytes:
     if not MIN_SECRET_BYTES <= len(secret) <= MAX_SECRET_BYTES:
         raise ConfigError(f"{what} must hold {MIN_SECRET_BYTES} to {MAX_SECRET_BYTES} characters")
     if world_readable:
-        logger.warning(f"{what} {path} is world-readable; consider chmod 600")
+        logger.warning(f"{what} {path} is world-readable; consider chmod o-r")
     return secret
 
 

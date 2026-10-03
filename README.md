@@ -48,33 +48,34 @@ These steps assume the monitor is checked out at `$MONITOR_DIR`, run by its own 
    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
    sudo apt install acl                # for setfacl
    sudo useradd --system --no-create-home --shell /usr/sbin/nologin isis-push
-   # Read-only access for isis-push: through the checkout and any parent directory
-   # others can't enter, e.g. a 750 home (no listing), and to the code and venv,
-   # including files added later (d:).
+   # Read-only access for isis-push: traverse (no listing) on the checkout and its
+   # parent; add any other parent directory others can't enter. Then read on the
+   # code and venv, including files added later (d:).
    sudo setfacl -m u:isis-push:x "$MONITOR_DIR" "$(dirname "$MONITOR_DIR")"
    setfacl -R -m u:isis-push:rX -m d:u:isis-push:rX .
    sudo install -d -m 700 -o isis-push -g isis-push data   # the only directory the unit can write to
    ```
 
-2. **Create the shared secret.** The monitor's daemon, which owns this directory, reads this same file. Surrounding whitespace in it is ignored.
+2. **Create the shared secret.** The monitor's daemon, which owns this directory, reads this same file. Surrounding whitespace in it is ignored. The directory's default ACL overrides the umask, so set each new secret file's mode explicitly:
    ```bash
-   (umask 077; openssl rand -hex 32 > push.secret)
+   openssl rand -hex 32 > push.secret
+   chmod 600 push.secret && setfacl -m u:isis-push:r push.secret
    ```
 
 3. **Configure the site:**
-   - Create the config from the example with `(umask 077; cp push_site.ini.example push_site.ini)`.
+   - Create the config from the example with `cp push_site.ini.example push_site.ini`.
    - Set `public_origin` (e.g. `https://push.example.org`) and `vapid_subject` (a `mailto:` address push services can use to reach you).
    - Relative paths in it are relative to the file.
    - Create the VAPID key once. Replacing it later makes every device subscribe again.
    ```bash
    .venv/bin/python -m push_site vapid push_site.ini
-   chmod 600 push_site.ini push.secret vapid.pem && setfacl -m u:isis-push:r push_site.ini push.secret vapid.pem
+   chmod 600 push_site.ini vapid.pem && setfacl -m u:isis-push:r push_site.ini vapid.pem   # chmod 600 alone would cut isis-push off
    ```
 
 4. **Run it:**
    - Install `deploy/isis-push-site.service`, filling in its `/path/to/ISIS_Beam_Monitor` placeholder (if your venv isn't `push_site/.venv`, change `ExecStart` and add the venv to `BindReadOnlyPaths`):
      ```bash
-     sed "s|/path/to/ISIS_Beam_Monitor|$MONITOR_DIR|g" deploy/isis-push-site.service | sudo tee /etc/systemd/system/isis-push-site.service
+     sed "/^#/!s|/path/to/ISIS_Beam_Monitor|$MONITOR_DIR|g" deploy/isis-push-site.service | sudo tee /etc/systemd/system/isis-push-site.service
      sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site
      ```
      Logs are in `journalctl -u isis-push-site`.
