@@ -63,7 +63,7 @@ def revoke(config, store: Store, args) -> None:
     print(f"Device {args.device_id} revoked.")
 
 
-def vapid(config, store: Store, args) -> None:
+def vapid(config) -> None:
     key = generate_vapid_key(Path(config.vapid_key_file))
     print(f"Created {config.vapid_key_file}; keep it private. Public key:\n{public_key(key)}")
 
@@ -102,12 +102,14 @@ def main(argv=None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
         config = load_config(args.config)
+        if args.command == "vapid":  # run by the directory's owner, who can't open data/
+            return vapid(config)
         store = Store(Path(config.db_path))
         try:
             if args.command == "serve":
                 serve(config, store)
             else:
-                commands = {"invite": invite, "devices": devices, "revoke": revoke, "vapid": vapid}
+                commands = {"invite": invite, "devices": devices, "revoke": revoke}
                 commands[args.command](config, store, args)
         finally:
             store.close()

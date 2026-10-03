@@ -73,3 +73,10 @@ def test_bad_vapid_key_is_a_config_error(tmp_path):
         load_vapid_key(tmp_path / "bad.pem")
     with pytest.raises(ConfigError, match="python -m push_site vapid"):
         load_vapid_key(tmp_path / "missing.pem")
+
+
+def test_vapid_doesnt_open_the_database(ini, tmp_path, monkeypatch):
+    """It's run by the directory's owner, who can't enter the site user's data/."""
+    monkeypatch.setattr("push_site.__main__.Store", lambda path: pytest.fail("opened the database"))
+    main(["vapid", str(ini)])
+    assert (tmp_path / "vapid.pem").exists()
