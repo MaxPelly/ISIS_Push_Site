@@ -65,7 +65,9 @@ class Store:
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             # Created owner-only; SQLite gives the -wal/-shm files the same mode.
             os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
-        self.db = sqlite3.connect(path)  # each `with self.db:` block is one transaction
+        # A short busy timeout: queries run on the event loop, so a CLI command
+        # holding a write lock mustn't stall every request for the default 5s.
+        self.db = sqlite3.connect(path, timeout=1)  # each `with self.db:` block is one transaction
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA foreign_keys = ON")
