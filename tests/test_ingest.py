@@ -47,7 +47,7 @@ async def test_forwarded_requests_are_refused(site, header):
     assert (await site.post("/ingest", **request)).status == 404
 
 
-@pytest.mark.parametrize("remote", ["172.18.0.5", "203.0.113.9", "::ffff:10.0.0.6", None])
+@pytest.mark.parametrize("remote", ["172.18.0.5", "203.0.113.9", "::ffff:192.0.2.6", None])
 async def test_requests_from_other_hosts_are_refused(site, monkeypatch, remote):
     """E.g. from a container on a Docker network, when the site listens on 0.0.0.0."""
     monkeypatch.setattr(web.Request, "remote", property(lambda self: remote))

@@ -164,7 +164,7 @@ The site ignores unknown fields. A reply of 204 means the notification was accep
 - 400: a malformed payload
 - 401: a bad or stale signature
 - 413: a body over 64 KB
-- 404: a request that came through the proxy
+- 404: not a direct request from loopback (another host, or one with proxy headers)
 
 Pushes carry only the title, the first 300 characters of the text, the severity and the id. Tapping one opens the app at that notification's feed entry.
 
