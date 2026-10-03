@@ -35,22 +35,27 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
 - **Server:**
   - The server binds to localhost (or to every interface, for a reverse proxy in a container) and runs as its own user in a systemd sandbox that can't see the rest of `/home` and can only write to its `data/` directory.
   - `/ingest` only answers requests from a loopback address that carry no proxy headers, whatever the server binds to.
-  - Secrets, the VAPID key and the database are owner-only files.
+  - Secrets, the VAPID key and the database are owner-only files, with read access for the site's user granted by ACL.
 
 ## Setup
 
-These steps assume the monitor runs as the `claude` user, checked out at `/home/claude/ISIS_Beam_Monitor` with this repo as its `push_site` submodule (`git submodule update --init push_site`). The site runs as its own user, `isis-push`, in group `claude`: sharing the monitor's user would let a compromised site act as it (e.g. through `/proc/<pid>/root`). The site's config, secret and VAPID key live in `/home/claude/ISIS_Beam_Monitor/push_site`, readable by the group; its database is in `data/` there, owned by `isis-push`. Git ignores them all. The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
+These steps assume the monitor runs as the `claude` user, checked out at `/home/claude/ISIS_Beam_Monitor` with this repo as its `push_site` submodule (`git submodule update --init push_site`). The site runs as its own user, `isis-push`, with read-only access to its code, config, secret and VAPID key granted by ACLs. Sharing the monitor's user, or a group with write access to its files, would let a compromised site act as it (e.g. through another process's `/proc/<pid>/root`). The config, secret and VAPID key live in `/home/claude/ISIS_Beam_Monitor/push_site`, and the database in `data/` there, owned by `isis-push`. Git ignores them all. The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
 
 1. **Install the code:**
    ```bash
    sudo apt install python3-venv   # on Debian/Ubuntu, if venv isn't available yet
    cd /home/claude/ISIS_Beam_Monitor/push_site
    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-   sudo useradd --system --no-create-home --shell /usr/sbin/nologin --groups claude isis-push
+   sudo apt install acl                # for setfacl
+   sudo useradd --system --no-create-home --shell /usr/sbin/nologin isis-push
+   # Read-only access for isis-push: through the parent directories (no listing),
+   # and to the code and venv, including files added later (d:).
+   setfacl -m u:isis-push:x /home/claude /home/claude/ISIS_Beam_Monitor
+   setfacl -R -m u:isis-push:rX -m d:u:isis-push:rX .
    sudo install -d -m 700 -o isis-push -g isis-push data   # the only directory the unit can write to
    ```
 
-2. **Create the shared secret.** The daemon runs as the same user, so it reads this same file. Surrounding whitespace in it is ignored.
+2. **Create the shared secret.** The monitor's daemon, which owns this directory, reads this same file. Surrounding whitespace in it is ignored.
    ```bash
    (umask 077; openssl rand -hex 32 > push.secret)
    ```
@@ -62,7 +67,7 @@ These steps assume the monitor runs as the `claude` user, checked out at `/home/
    - Create the VAPID key once. Replacing it later makes every device subscribe again.
    ```bash
    .venv/bin/python -m push_site vapid push_site.ini
-   chmod 640 push_site.ini push.secret vapid.pem   # readable by isis-push through the group
+   chmod 600 push_site.ini push.secret vapid.pem && setfacl -m u:isis-push:r push_site.ini push.secret vapid.pem
    ```
 
 4. **Run it:**

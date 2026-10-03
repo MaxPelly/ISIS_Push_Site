@@ -10,7 +10,8 @@ public_origin = https://push.example.org
 
 [SECRETS]
 # The same secret as the monitor's [PUSH] secret_file (at least 32 characters,
-# e.g. `openssl rand -hex 32`; surrounding whitespace is ignored). Keep it chmod 600.
+# e.g. `openssl rand -hex 32`; surrounding whitespace is ignored). Keep it chmod 600,
+# readable by the site's user through an ACL (see the README).
 ingest_secret_file = push.secret
 # The site's VAPID private key, created by `python -m push_site vapid push_site.ini`.
 # vapid_key_file = vapid.pem
