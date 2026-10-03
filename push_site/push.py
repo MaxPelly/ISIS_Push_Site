@@ -105,7 +105,10 @@ class Pusher:
                     logger.exception(f"Pushing notification {notification['id']} failed")
 
     async def fan_out(self, session: aiohttp.ClientSession, notification: dict) -> None:
-        targets = [t for t in self.store.push_targets() if self._wants(t, notification)]
+        subscribed = self.store.push_targets()
+        live = {t["endpoint"] for t in subscribed}  # forget counts for subscriptions that have gone
+        self._refusals = {e: n for e, n in self._refusals.items() if e in live}
+        targets = [t for t in subscribed if self._wants(t, notification)]
         if not targets:
             return
         data = push_payload(notification)
