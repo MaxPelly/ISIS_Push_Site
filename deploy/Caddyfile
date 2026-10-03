@@ -3,9 +3,11 @@
 # /ingest directly on 127.0.0.1:8765, so that path is never served publicly.
 push.example.org {
 	# A Cloudflare Origin Certificate (SSL/TLS > Origin Server), readable by
-	# the caddy user. Caddy's own Let's Encrypt challenges can't get through
-	# the proxy. Without Cloudflare, delete this line and Caddy gets a
-	# certificate itself.
+	# the caddy user: Caddy's HTTP and TLS-ALPN challenges can't get through
+	# the proxy. Or delete this line and use Let's Encrypt's DNS challenge
+	# (a Caddy build with the Cloudflare DNS module and, in the global
+	# options, `acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}`), which also
+	# works without Cloudflare's proxy.
 	tls /etc/caddy/cf-origin.pem /etc/caddy/cf-origin.key
 
 	@ingest path /ingest /ingest/*
@@ -21,6 +23,7 @@ push.example.org {
 	}
 
 	encode zstd gzip
+	# For Caddy in Docker: host.docker.internal:8765, with the site's host = 0.0.0.0.
 	reverse_proxy 127.0.0.1:8765
 
 	# Rate limiting is best done with a Cloudflare rate limiting rule on

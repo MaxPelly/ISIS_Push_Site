@@ -83,7 +83,7 @@ With a proxied (orange-cloud) DNS record in front of Caddy, set `public_origin` 
 - **Certificate:**
   - Set SSL/TLS mode to **Full (strict)**.
   - Create an **Origin Certificate** (SSL/TLS > Origin Server), save it as `/etc/caddy/cf-origin.pem` and `/etc/caddy/cf-origin.key`, and make both readable by the `caddy` user.
-  - Caddy's own Let's Encrypt challenges don't get through the proxy.
+  - Caddy's HTTP and TLS-ALPN challenges don't get through the proxy. Alternatively, use Let's Encrypt's DNS challenge (`acme_dns cloudflare`, with a Caddy build that has the Cloudflare DNS module) and drop the `tls` line.
 - **For this hostname, turn off anything that rewrites pages:**
   - Rocket Loader
   - Email Obfuscation
@@ -95,7 +95,7 @@ With a proxied (orange-cloud) DNS record in front of Caddy, set `public_origin` 
 - **Optional extras:**
   - A rate limiting rule on `/api/*`, e.g. 60 requests a minute per IP.
   - A WAF rule blocking `/ingest`.
-  - Allowing port 443 on the server only from Cloudflare's IP ranges, or turning on Authenticated Origin Pulls.
+  - Allowing ports 80 and 443 on the server only from Cloudflare's IP ranges. Other Cloudflare accounts can still reach the origin through Cloudflare, bypassing your rules; Authenticated Origin Pulls with your own certificate closes that.
 
 Nothing in the site or the monitor needs changing. The daemon still posts to `127.0.0.1` directly, and the site only takes `/ingest` from loopback without proxy headers such as Cloudflare's `CF-Connecting-IP`.
 
