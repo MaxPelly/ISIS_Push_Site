@@ -31,6 +31,8 @@ MemoryMax=256M
 # secrets, and can only write its database in data/. It needs only inbound
 # connections (from Caddy and the daemon) and outbound HTTPS to push services.
 # If the venv is outside the site's directory, add it to BindReadOnlyPaths.
+# data/ must exist before the unit starts (mkdir -m 700 data), with db_path
+# set to data/push_site.db in push_site.ini.
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectSystem=strict
