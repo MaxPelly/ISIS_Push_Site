@@ -45,6 +45,7 @@ SECURITY_HEADERS = {
     # POSTs, failing same_origin_guard. Invite links keep their token in
     # the #fragment, which is never sent as a referrer.
     "Referrer-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",  # none are used
 }
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{43}")  # secrets.token_urlsafe(32), as invites and devices use

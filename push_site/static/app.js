@@ -156,7 +156,7 @@ async function loadPrefs() {
   const topics = [...offered, ...prefs.topics.filter((t) => !offered.includes(t))];
   $("topics").replaceChildren(el("legend", { textContent: "Topics" }), ...topics.map((topic) => el("label", {},
     el("input", { type: "checkbox", name: "topic", value: topic, checked: prefs.topics.includes(topic) }),
-    ` ${TOPIC_NAMES[topic] || `${topic} runs`}`)));
+    ` ${Object.hasOwn(TOPIC_NAMES, topic) ? TOPIC_NAMES[topic] : `${topic} runs`}`)));
   const quiet = prefs.quiet;
   $("quiet-on").checked = !!quiet;
   if (quiet) {

@@ -10,6 +10,7 @@ async def test_manifest_and_icons(site):
         resp = await site.get(icon["src"])
         assert resp.status == 200 and resp.content_type == "image/png"
         assert "default-src 'self'" in resp.headers["Content-Security-Policy"]
+        assert "camera=()" in resp.headers["Permissions-Policy"]
 
 
 async def test_static_files_cannot_escape_their_directory(site):

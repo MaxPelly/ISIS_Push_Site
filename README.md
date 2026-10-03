@@ -31,7 +31,7 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
   - Push subscriptions are only accepted for the browsers' push services (FCM, Apple, Mozilla, Windows), with keys that are checked to be valid. This means the site can't be used to send requests to arbitrary servers.
 - **Pages:**
   - The pages have a strict Content Security Policy (no inline script or style) and set all text with `textContent`.
-  - `nosniff`, `Referrer-Policy: same-origin` and `frame-ancestors 'none'` are set on every response.
+  - `nosniff`, `Referrer-Policy: same-origin`, `frame-ancestors 'none'` and a `Permissions-Policy` turning off the camera, microphone and location are set on every response.
 - **Server:**
   - The server binds to localhost (or to every interface, for a reverse proxy in a container) and runs in a systemd sandbox that can't see the rest of `/home` and can only write to its `data/` directory.
   - `/ingest` only answers requests from a loopback address that carry no proxy headers, whatever the server binds to.
