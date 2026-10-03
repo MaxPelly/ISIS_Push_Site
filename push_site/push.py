@@ -156,5 +156,5 @@ class Pusher:
                     logger.info(f"Removed device {target['device_id']}'s push subscription (HTTP {status})")
                 else:  # no endpoint in the log: it's a bearer capability for that device
                     logger.warning(f"Push to device {target['device_id']} failed: HTTP {status}")
-            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            except (aiohttp.ClientError, TimeoutError) as exc:
                 logger.warning(f"Push to device {target['device_id']} failed: {type(exc).__name__}")
