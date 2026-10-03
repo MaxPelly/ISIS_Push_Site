@@ -39,18 +39,19 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
 
 ## Setup
 
-These steps assume the monitor runs as the `claude` user, checked out at `/home/claude/ISIS_Beam_Monitor` with this repo as its `push_site` submodule (`git submodule update --init push_site`). The site runs as its own user, `isis-push`, with read-only access to its code, config, secret and VAPID key granted by ACLs. Sharing the monitor's user, or a group with write access to its files, would let a compromised site act as it (e.g. through another process's `/proc/<pid>/root`). The config, secret and VAPID key live in `/home/claude/ISIS_Beam_Monitor/push_site`, and the database in `data/` there, owned by `isis-push`. Git ignores them all. The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
+These steps assume the monitor is checked out at `$MONITOR_DIR`, run by its own user, with this repo as its `push_site` submodule (`git submodule update --init push_site`). **Set `MONITOR_DIR` to your checkout first**, in the shell you run the steps from, e.g. `MONITOR_DIR=/home/monitor/ISIS_Beam_Monitor`. The site runs as its own user, `isis-push`, with read-only access to its code, config, secret and VAPID key granted by ACLs. Sharing the monitor's user, or a group with write access to its files, would let a compromised site act as it (e.g. through another process's `/proc/<pid>/root`). The config, secret and VAPID key live in `$MONITOR_DIR/push_site`, and the database in `data/` there, owned by `isis-push`. Git ignores them all. The site needs Python 3.10+ and a public HTTPS name, e.g. `push.example.org`, pointing at the server.
 
 1. **Install the code:**
    ```bash
    sudo apt install python3-venv   # on Debian/Ubuntu, if venv isn't available yet
-   cd /home/claude/ISIS_Beam_Monitor/push_site
+   cd "$MONITOR_DIR/push_site"
    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
    sudo apt install acl                # for setfacl
    sudo useradd --system --no-create-home --shell /usr/sbin/nologin isis-push
-   # Read-only access for isis-push: through the parent directories (no listing),
-   # and to the code and venv, including files added later (d:).
-   setfacl -m u:isis-push:x /home/claude /home/claude/ISIS_Beam_Monitor
+   # Read-only access for isis-push: through the checkout and any parent directory
+   # others can't enter, e.g. a 750 home (no listing), and to the code and venv,
+   # including files added later (d:).
+   sudo setfacl -m u:isis-push:x "$MONITOR_DIR" "$(dirname "$MONITOR_DIR")"
    setfacl -R -m u:isis-push:rX -m d:u:isis-push:rX .
    sudo install -d -m 700 -o isis-push -g isis-push data   # the only directory the unit can write to
    ```
@@ -71,7 +72,12 @@ These steps assume the monitor runs as the `claude` user, checked out at `/home/
    ```
 
 4. **Run it:**
-   - Copy `deploy/isis-push-site.service` to `/etc/systemd/system/`, then run `sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site`. Logs are in `journalctl -u isis-push-site`.
+   - Install `deploy/isis-push-site.service`, filling in its `/path/to/ISIS_Beam_Monitor` placeholder (if your venv isn't `push_site/.venv`, change `ExecStart` and add the venv to `BindReadOnlyPaths`):
+     ```bash
+     sed "s|/path/to/ISIS_Beam_Monitor|$MONITOR_DIR|g" deploy/isis-push-site.service | sudo tee /etc/systemd/system/isis-push-site.service
+     sudo systemctl daemon-reload && sudo systemctl enable --now isis-push-site
+     ```
+     Logs are in `journalctl -u isis-push-site`.
    - Set up Caddy with `deploy/Caddyfile`, using your host name. That file assumes Cloudflare's proxy is in front (see below). Without Cloudflare, delete its `tls` line and Caddy gets a certificate itself.
    - Any reverse proxy works if it terminates HTTPS, refuses `/ingest`, adds `X-Forwarded-For`, and forwards the rest to `127.0.0.1:8765`. The site refuses forwarded `/ingest` requests as a backstop.
    - If Caddy runs in Docker, set `host = 0.0.0.0` and proxy to `host.docker.internal:8765` (with `extra_hosts: ["host.docker.internal:host-gateway"]` on Linux). The site still only takes `/ingest` from loopback. Keep port 8765 closed in the server's firewall.
@@ -80,7 +86,8 @@ These steps assume the monitor runs as the `claude` user, checked out at `/home/
    ```ini
    [PUSH]
    url = http://127.0.0.1:8765/ingest
-   secret_file = /home/claude/ISIS_Beam_Monitor/push_site/push.secret
+   # Relative to config.ini's directory
+   secret_file = push_site/push.secret
    ```
 
 ### Behind Cloudflare's proxy
@@ -108,7 +115,7 @@ Nothing in the site or the monitor needs changing. The daemon still posts to `12
 
 ## Inviting people
 
-From `/home/claude/ISIS_Beam_Monitor/push_site`, as `isis-push`, which owns the database:
+From `$MONITOR_DIR/push_site`, as `isis-push`, which owns the database:
 
 ```bash
 sudo -u isis-push .venv/bin/python -m push_site invite push_site.ini --label "Alex's phone"
