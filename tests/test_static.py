@@ -1,5 +1,7 @@
 import json
 
+from push_site import __version__
+
 
 async def test_manifest_and_icons(site):
     resp = await site.get("/manifest.webmanifest")
@@ -34,3 +36,8 @@ async def test_page_and_its_assets(site):
         resp = await site.get(path)
         assert resp.status == 200 and kind in resp.content_type.replace("text/javascript", "application/javascript")
         assert resp.headers["Cache-Control"] == "no-cache"
+
+
+async def test_page_shows_the_site_version(site):
+    html = await (await site.get("/")).text()
+    assert f"v{__version__}<" in html and "{{" not in html

@@ -14,6 +14,7 @@ button.link { background: none; color: #1f6feb; padding: 0; text-decoration: und
 #join-paste { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.8rem; }
 #join-paste input { flex: 1; min-width: 12rem; font: inherit; padding: 0.45rem; }
 .hint { color: #57606a; font-size: 0.9rem; }
+.version { text-align: center; font-size: 0.8rem; }
 .message { background: #fff1e6; border-left: 4px solid #d1242f; padding: 0.6rem 0.8rem; border-radius: 6px; }
 .feed { list-style: none; margin: 0; padding: 0; }
 .feed li { border-left: 4px solid #8c959f; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; background: #f8f9fb; border-radius: 4px; }

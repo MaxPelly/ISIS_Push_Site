@@ -16,6 +16,7 @@ from aiohttp import web
 from aiohttp.web_protocol import RequestPayloadError
 from cryptography.hazmat.primitives.asymmetric import ec
 
+from push_site import __version__
 from push_site.config import Config
 from push_site.prefs import BASE_TOPICS, parse_prefs
 from push_site.storage import DEVICE_IDLE_LIMIT, Store
@@ -58,6 +59,7 @@ _HOST_RE = re.compile(r"[a-z0-9.-]+")
 
 CONFIG = web.AppKey("config", Config)
 VAPID_PUBLIC_KEY = web.AppKey("vapid_public_key", str)
+INDEX = web.AppKey("index", str)  # index.html, versioned
 STORE = web.AppKey("store", Store)
 # Called with each newly stored notification (fan-out to push subscribers);
 # it must not block or raise, since the notification is already stored.
@@ -331,6 +333,12 @@ def _file(name: str, content_type: str, cache: str = "no-cache"):
     return handler
 
 
+async def _index(request: web.Request) -> web.Response:
+    """The page, with the site's version filled in."""
+    return web.Response(text=request.app[INDEX], content_type="text/html",
+                        headers={"Cache-Control": "no-cache"})
+
+
 def create_app(config: Config, store: Store, on_notification: Callable[[dict], None],
                vapid_public_key: str) -> web.Application:
     app = web.Application(client_max_size=MAX_BODY, middlewares=[same_origin_guard])
@@ -338,6 +346,7 @@ def create_app(config: Config, store: Store, on_notification: Callable[[dict], N
     app[STORE] = store
     app[ON_NOTIFICATION] = on_notification
     app[VAPID_PUBLIC_KEY] = vapid_public_key
+    app[INDEX] = (STATIC / "index.html").read_text().replace("{{version}}", __version__)
     app.on_response_prepare.append(_add_security_headers)
     app.router.add_post("/ingest", ingest)
     app.router.add_post("/api/redeem", redeem)
@@ -350,7 +359,7 @@ def create_app(config: Config, store: Store, on_notification: Callable[[dict], N
     app.router.add_put("/api/prefs", put_prefs)
     app.router.add_get("/api/topics", topics)
     app.router.add_get("/api/feed", feed)
-    app.router.add_get("/", _file("index.html", "text/html; charset=utf-8"))
+    app.router.add_get("/", _index)
     # At the root, so the service worker's scope covers the whole site.
     app.router.add_get("/sw.js", _file("sw.js", "text/javascript; charset=utf-8"))
     app.router.add_get("/manifest.webmanifest", _file("manifest.webmanifest", "application/manifest+json"))

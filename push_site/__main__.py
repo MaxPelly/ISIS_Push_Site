@@ -12,6 +12,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+from push_site import __version__
 from push_site.app import create_app
 from push_site.config import ConfigError, load_config
 from push_site.push import Pusher, generate_vapid_key, load_vapid_key, public_key
@@ -34,6 +35,7 @@ def build_app(config, store: Store) -> web.Application:
 
 
 def serve(config, store: Store) -> None:
+    logging.getLogger(__name__).info("ISIS Push Site v%s", __version__)
     # No access log: the reverse proxy keeps one.
     web.run_app(build_app(config, store), host=config.host, port=config.port, access_log=None, print=None)
 
@@ -79,6 +81,7 @@ def _positive(kind):
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="python -m push_site")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
 
     def command(name: str, help: str) -> argparse.ArgumentParser:
