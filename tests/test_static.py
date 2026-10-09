@@ -1,6 +1,7 @@
 import json
 
 from push_site import __version__
+from tests.helpers import payload, signed
 
 
 async def test_manifest_and_icons(site):
@@ -40,4 +41,11 @@ async def test_page_and_its_assets(site):
 
 async def test_page_shows_the_site_version(site):
     html = await (await site.get("/")).text()
-    assert f"v{__version__}<" in html and "{{" not in html
+    assert f">ISIS Push Site v{__version__}<" in html and "{{" not in html
+
+
+async def test_page_shows_the_monitor_version_from_the_newest_notification(site):
+    await site.post("/ingest", **signed(payload(id="1", monitor_version="1.0.0")))
+    await site.post("/ingest", **signed(payload(id="2", monitor_version="1.1.0")))
+    html = await (await site.get("/")).text()
+    assert f">ISIS Push Site v{__version__} · ISIS Beam Monitor v1.1.0<" in html

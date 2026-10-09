@@ -80,6 +80,8 @@ async def test_oversized_body_is_refused(site):
     payload(facts=[["only one"]]),
     payload(url="javascript:alert(1)"),
     payload(timestamp=5),
+    payload(monitor_version="<b>1</b>"),
+    payload(monitor_version=1),
     pytest.param(b'{"v": 1, "id": "1", "severity": "info", "text": "\\ud800"}', id="lone-surrogate"),
     [1, 2],
 ])

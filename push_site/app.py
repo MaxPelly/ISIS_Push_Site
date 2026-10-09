@@ -3,6 +3,7 @@ import base64
 import binascii
 import hashlib
 import hmac
+import html
 import ipaddress
 import json
 import logging
@@ -29,6 +30,7 @@ MAX_BODY = 64 * 1024
 MAX_CLOCK_SKEW = 60  # seconds an ingest request's X-Timestamp may be off by
 SEVERITIES = ("info", "good", "warning", "attention")
 _ID_RE = re.compile(r"[0-9a-f-]{1,64}")  # the monitor sends uuid4s; ids also end up in URLs
+_VERSION_RE = re.compile(r"[0-9A-Za-z.+-]{0,32}")  # the monitor's version, shown in the page footer
 MAX_TOPIC_LENGTH = 64
 _TEXT_FIELDS = ("title", "text", "emoji", "flavour", "url_label", "topic")
 
@@ -59,7 +61,7 @@ _HOST_RE = re.compile(r"[a-z0-9.-]+")
 
 CONFIG = web.AppKey("config", Config)
 VAPID_PUBLIC_KEY = web.AppKey("vapid_public_key", str)
-INDEX = web.AppKey("index", str)  # index.html, versioned
+INDEX = web.AppKey("index", str)  # index.html, before {{version}} is filled in
 STORE = web.AppKey("store", Store)
 # Called with each newly stored notification (fan-out to push subscribers);
 # it must not block or raise, since the notification is already stored.
@@ -99,6 +101,9 @@ def parse_notification(data: object) -> dict:
     if timestamp is not None and not isinstance(timestamp, str):
         raise ValueError("bad timestamp")
     n["timestamp"] = timestamp
+    n["monitor_version"] = data.get("monitor_version", "")
+    if not (isinstance(n["monitor_version"], str) and _VERSION_RE.fullmatch(n["monitor_version"])):
+        raise ValueError("bad monitor_version")
     json.dumps(n, ensure_ascii=False).encode()  # UnicodeEncodeError (a ValueError) on lone surrogates
     return n
 
@@ -334,8 +339,13 @@ def _file(name: str, content_type: str, cache: str = "no-cache"):
 
 
 async def _index(request: web.Request) -> web.Response:
-    """The page, with the site's version filled in."""
-    return web.Response(text=request.app[INDEX], content_type="text/html",
+    """The page, with the site's version filled in, and the monitor's from
+    the newest notification."""
+    newest = request.app[STORE].feed(1)
+    version = f"ISIS Push Site v{__version__}"
+    if newest and newest[0].get("monitor_version"):
+        version += f" · ISIS Beam Monitor v{html.escape(newest[0]['monitor_version'])}"
+    return web.Response(text=request.app[INDEX].replace("{{version}}", version), content_type="text/html",
                         headers={"Cache-Control": "no-cache"})
 
 
@@ -346,7 +356,7 @@ def create_app(config: Config, store: Store, on_notification: Callable[[dict], N
     app[STORE] = store
     app[ON_NOTIFICATION] = on_notification
     app[VAPID_PUBLIC_KEY] = vapid_public_key
-    app[INDEX] = (STATIC / "index.html").read_text().replace("{{version}}", __version__)
+    app[INDEX] = (STATIC / "index.html").read_text()
     app.on_response_prepare.append(_add_security_headers)
     app.router.add_post("/ingest", ingest)
     app.router.add_post("/api/redeem", redeem)

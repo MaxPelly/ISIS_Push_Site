@@ -155,11 +155,12 @@ The body is UTF-8 JSON, at most 64 KB:
   "emoji": "...", "facts": [["key", "value"]], "flavour": "",
   "url": "https://... or null", "url_label": "Open",
   "timestamp": "<ISO 8601> or null",
-  "topic": "TS1 | TS2 | Muons | MCR | Summary | <instrument name>"
+  "topic": "TS1 | TS2 | Muons | MCR | Summary | <instrument name>",
+  "monitor_version": "1.0.0"
 }
 ```
 
-The site ignores unknown fields. A reply of 204 means the notification was accepted, including when its `id` was already seen. Other replies:
+`monitor_version` is optional: up to 32 letters, digits, `.`, `+` and `-`. The page footer shows the newest notification's. The site ignores unknown fields. A reply of 204 means the notification was accepted, including when its `id` was already seen. Other replies:
 
 - 400: a malformed payload
 - 401: a bad or stale signature

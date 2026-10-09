@@ -6,6 +6,8 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- The page footer also shows the monitor's version, from the newest notification's optional `monitor_version` field.
+
 ## [1.0.0] - 2026-10-09
 
 First versioned release.
