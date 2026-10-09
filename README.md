@@ -187,3 +187,12 @@ The code is in `push_site/`:
 | `push.py` | VAPID and sending |
 | `__main__.py` | the command line |
 | `static/` | the web app |
+
+## Releases
+
+Versions follow [Semantic Versioning](https://semver.org/) and are set in `push_site/__init__.py` (`__version__`), which the page footer and `--version` show. To release:
+
+1. Move the `[Unreleased]` entries in `CHANGELOG.md` into a new `## [X.Y.Z] - YYYY-MM-DD` section, and set `__version__` to `X.Y.Z`.
+2. Commit, then tag and push: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin main vX.Y.Z`.
+
+The release workflow checks the tag matches `__version__`, runs the tests and publishes a GitHub release with that section's notes. Then point the monitor's `push_site` submodule at the tag.
