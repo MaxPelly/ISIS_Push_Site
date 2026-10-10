@@ -1,6 +1,7 @@
 import json
 
 from push_site import __version__
+from push_site.prefs import BASE_TOPICS
 from tests.helpers import payload, signed
 
 
@@ -49,3 +50,11 @@ async def test_page_shows_the_monitor_version_from_the_newest_notification(site)
     await site.post("/ingest", **signed(payload(id="2", monitor_version="1.1.0")))
     html = await (await site.get("/")).text()
     assert f">ISIS Push Site v{__version__} · ISIS Beam Monitor v1.1.0<" in html
+
+
+async def test_feed_has_a_tab_and_a_css_filter_for_every_fixed_topic(site):
+    html = await (await site.get("/")).text()
+    css = await (await site.get("/static/app.css")).text()
+    for tab in (*BASE_TOPICS, "runs"):
+        assert f'id="tab-{tab}"' in html, tab
+        assert f'li:not([data-tab="{tab}"])' in css and f':not(:has([data-tab="{tab}"]))::after' in css, tab

@@ -187,6 +187,7 @@ async function savePrefs(event) {
 function feedItem(n, focused) {
   const item = el("li", { className: `${n.severity}${focused ? " focus" : ""}` },
     el("div", { className: "title", textContent: `${n.emoji} ${n.title}`.trim() }));
+  if (n.topic) item.dataset.tab = Object.hasOwn(TOPIC_NAMES, n.topic) ? n.topic : "runs";  // the CSS shows it under that tab
   const when = new Date(n.timestamp);
   if (n.timestamp && !isNaN(when)) item.append(el("time", { dateTime: n.timestamp, textContent: when.toLocaleString() }));
   if (n.text) item.append(el("p", { textContent: n.text }));
@@ -202,9 +203,10 @@ function feedItem(n, focused) {
 
 async function loadFeed(scrollToFocus) {
   const focus = hashParam("n");
-  const items = await api("GET", "/api/feed?limit=50");
+  const items = await api("GET", "/api/feed?limit=200");  // all the site keeps by default, so each tab has some history
   $("feed").replaceChildren(...(items.length ? items.map((n) => feedItem(n, n.id === focus))
     : [el("li", { textContent: "Nothing yet." })]));
+  if (scrollToFocus && focus) $("tab-all").checked = true;  // so the tapped notification isn't filtered out
   if (scrollToFocus) document.querySelector(".feed .focus")?.scrollIntoView({ block: "center" });
 }
 
