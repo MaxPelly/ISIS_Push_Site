@@ -148,6 +148,29 @@ async def test_repeatedly_refused_subscriptions_are_removed(store, vapid, status
     assert bool(store.push_targets()) is kept
 
 
+@pytest.mark.parametrize("statuses, counted", [
+    ([403, 403], [False, False]),  # every device refused the same way: the site's fault
+    ([403] * 5, [False] * 5),
+    ([401] * 4 + [None], [False] * 4 + [False]),  # 80% from 5 devices
+    ([403] + [None] * 4, [True] + [False] * 4),  # one device refused
+    ([403, 400], [True, True]),  # not the same refusal
+    ([404, 404], [False, False]),  # gone, so deleted instead
+    ([413, 413], [False, False]),  # too large is never the device's fault
+    ([413], [False]),
+])
+async def test_site_wide_refusals_arent_held_against_devices(store, vapid, caplog, statuses, counted):
+    devices = [add_device(store, f"https://fcm.googleapis.com/{i}") for i in range(len(statuses))]
+    pusher = Pusher(store, vapid, SUBJECT)
+    errors = [s and WebPushException("failed", response=MagicMock(status=s)) for s in statuses]
+    with patch.object(push, "webpush_async", new=AsyncMock(side_effect=errors)):
+        await pusher.fan_out(MagicMock(), notification())
+    endpoints = [f"https://fcm.googleapis.com/{i}" for i in range(len(devices))]
+    assert [e in pusher._refusals for e in endpoints] == counted
+    site_fault = statuses[0] in (401, 403) and not any(counted)
+    assert ("check the VAPID key" in caplog.text) is site_fault
+    assert len([r for r in caplog.records if r.levelname == "ERROR"]) == site_fault
+
+
 async def test_network_errors_are_logged_and_other_devices_still_get_theirs(store, vapid, caplog):
     for name in "ab":
         add_device(store, f"https://fcm.googleapis.com/{name}")

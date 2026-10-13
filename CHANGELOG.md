@@ -6,6 +6,7 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- When every device's push is refused with the same HTTP 400, 401 or 403 (or 80% of them, from 5 devices), the site logs one error pointing at its VAPID key or clock and doesn't count it against the devices, so a site fault no longer removes every subscription. A site with one device can't tell the two apart and still drops it after 20 refusals in a row. HTTP 413 is never counted against a device.
 - A device's refused push only removes that device's subscription, not one another device has since claimed with the same endpoint.
 
 ## [1.0.2] - 2026-10-10

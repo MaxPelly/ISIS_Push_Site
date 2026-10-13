@@ -4,7 +4,9 @@ import base64
 import json
 import logging
 import os
+from collections import Counter
 from pathlib import Path
+from typing import Optional
 
 import aiohttp
 from cryptography.hazmat.primitives import serialization
@@ -23,10 +25,15 @@ SEND_TIMEOUT = 10.0  # seconds per push request
 TTL = 3600  # how long a push service keeps trying an offline device, in seconds
 MAX_TITLE, MAX_TEXT = 120, 300  # characters; keeps payloads well under Web Push's 4 KB
 # A subscription is dropped after this many refusals in a row (e.g. 400 or 403,
-# which resending won't fix). Not at once: a site-wide fault, such as a bad
-# VAPID setup, would otherwise wipe every device. The app re-sends its
-# subscription whenever it's opened, so a dropped device can recover.
+# which resending won't fix). Not at once, in case the fault is the site's;
+# the app re-sends its subscription whenever it's opened, so a dropped device
+# can recover.
 MAX_REFUSALS = 20
+# When (nearly) every device is refused with the same one of these, the fault
+# is the site's, such as a bad VAPID key or clock, and isn't held against the
+# devices. With a single device the two can't be told apart, so a one-device
+# site still drops it after MAX_REFUSALS.
+SITE_FAULT_STATUSES = (400, 401, 403)
 
 
 def generate_vapid_key(path: Path) -> Vapid02:
@@ -117,9 +124,15 @@ class Pusher:
         results = await asyncio.gather(
             *(self._send(session, semaphore, t, data, urgency) for t in targets), return_exceptions=True
         )
+        site_fault = _site_fault([r for r in results if isinstance(r, int)], len(targets))
+        if site_fault:
+            logger.error(f"Pushes to {len(targets)} devices refused with HTTP {site_fault}; "
+                         "check the VAPID key and the server's clock")
         for target, result in zip(targets, results):
             if isinstance(result, Exception):
                 logger.error(f"Push to device {target['device_id']} failed unexpectedly: {result!r}")
+            elif isinstance(result, int) and result != site_fault:
+                self._refused(target, result)
 
     @staticmethod
     def _wants(target: dict, notification: dict) -> bool:
@@ -129,7 +142,8 @@ class Pusher:
             logger.warning(f"Skipping device {target['device_id']}: unusable preferences ({exc!r})")
             return False
 
-    async def _send(self, session, semaphore, target: dict, data: str, urgency: str) -> None:
+    async def _send(self, session, semaphore, target: dict, data: str, urgency: str) -> Optional[int]:
+        """Push to one device: the HTTP status if the push service refused it."""
         async with semaphore:
             try:
                 await webpush_async(
@@ -144,17 +158,40 @@ class Pusher:
                 )
                 self._refusals.pop(target["endpoint"], None)
             except WebPushException as exc:
-                endpoint = target["endpoint"]
-                status = exc.response.status if exc.response is not None else None
-                if status is not None and 400 <= status < 500 and status != 429:
-                    self._refusals[endpoint] = self._refusals.get(endpoint, 0) + 1
-                else:  # a server error: the push service may be having a bad day
-                    self._refusals.pop(endpoint, None)
-                if status in (404, 410) or self._refusals.get(endpoint, 0) >= MAX_REFUSALS:  # 404/410: unsubscribed
-                    self.store.delete_endpoint(endpoint, target["device_id"])
-                    self._refusals.pop(endpoint, None)
-                    logger.info(f"Removed device {target['device_id']}'s push subscription (HTTP {status})")
-                else:  # no endpoint in the log: it's a bearer capability for that device
-                    logger.warning(f"Push to device {target['device_id']} failed: HTTP {status}")
+                if exc.response is not None:
+                    return exc.response.status
+                logger.warning(f"Push to device {target['device_id']} failed: {type(exc).__name__}")
             except (aiohttp.ClientError, TimeoutError) as exc:
                 logger.warning(f"Push to device {target['device_id']} failed: {type(exc).__name__}")
+        return None
+
+    def _refused(self, target: dict, status: int) -> None:
+        endpoint = target["endpoint"]
+        if status in (404, 410):  # unsubscribed
+            self._remove(target, status)
+            return
+        # 413 (too large) and 429 (rate limited) are the site's doing, not the device's.
+        if 400 <= status < 500 and status not in (413, 429):
+            self._refusals[endpoint] = self._refusals.get(endpoint, 0) + 1
+            if self._refusals[endpoint] >= MAX_REFUSALS:
+                self._remove(target, status)
+                return
+        elif status >= 500:  # the push service may be having a bad day
+            self._refusals.pop(endpoint, None)
+        # No endpoint in the log: it's a bearer capability for that device.
+        logger.warning(f"Push to device {target['device_id']} failed: HTTP {status}")
+
+    def _remove(self, target: dict, status: int) -> None:
+        self.store.delete_endpoint(target["endpoint"], target["device_id"])
+        self._refusals.pop(target["endpoint"], None)
+        logger.info(f"Removed device {target['device_id']}'s push subscription (HTTP {status})")
+
+
+def _site_fault(refusals: list, attempted: int) -> Optional[int]:
+    """The status that every push (or, from 5 attempts, 80% of them) was
+    refused with, if it's one that points at the site rather than the devices."""
+    if attempted < 2 or not refusals:
+        return None
+    status, count = Counter(refusals).most_common(1)[0]
+    needed = attempted if attempted < 5 else 0.8 * attempted
+    return status if status in SITE_FAULT_STATUSES and count >= needed else None
