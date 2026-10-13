@@ -50,27 +50,10 @@ button.link { background: none; color: #1f6feb; padding: 0; text-decoration: und
 .feed .title { font-weight: 600; }
 .feed time { display: block; color: #57606a; font-size: 0.85rem; }
 .feed p { margin: 0.3rem 0; white-space: pre-line; }
-.feed .flavour { font-style: italic; color: #57606a; }
 .feed dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.1rem 0.8rem; margin: 0.3rem 0; font-size: 0.9rem; }
 .feed dt { color: #57606a; }
 .feed dd { margin: 0; overflow-wrap: anywhere; }
-.feed.loaded:empty::after { content: "Nothing yet."; color: #57606a; }
-/* Feed tabs, in CSS alone: each item's data-tab is its topic, or "runs" for an instrument's.
-   A tab with none of its items says so, once the feed has loaded. */
+/* Feed tabs: each feed item's data-tab is its topic, or "runs" for an instrument's (see showTab). */
 .tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.7rem; }
-.tabs input { position: absolute; opacity: 0; pointer-events: none; }  /* still reachable by keyboard */
-.tabs label { padding: 0.25rem 0.7rem; border-radius: 999px; background: #e7ebf0; font-size: 0.9rem; cursor: pointer; }
-.tabs input:checked + label { background: #102542; color: #fff; }
-.tabs input:focus-visible + label { outline: 2px solid #1f6feb; outline-offset: 2px; }
-.tabs:has(#tab-TS1:checked) + .feed li:not([data-tab="TS1"]),
-.tabs:has(#tab-TS2:checked) + .feed li:not([data-tab="TS2"]),
-.tabs:has(#tab-Muons:checked) + .feed li:not([data-tab="Muons"]),
-.tabs:has(#tab-MCR:checked) + .feed li:not([data-tab="MCR"]),
-.tabs:has(#tab-Summary:checked) + .feed li:not([data-tab="Summary"]),
-.tabs:has(#tab-runs:checked) + .feed li:not([data-tab="runs"]) { display: none; }
-.tabs:has(#tab-TS1:checked) + .feed:has(li):not(:has([data-tab="TS1"]))::after,
-.tabs:has(#tab-TS2:checked) + .feed:has(li):not(:has([data-tab="TS2"]))::after,
-.tabs:has(#tab-Muons:checked) + .feed:has(li):not(:has([data-tab="Muons"]))::after,
-.tabs:has(#tab-MCR:checked) + .feed:has(li):not(:has([data-tab="MCR"]))::after,
-.tabs:has(#tab-Summary:checked) + .feed:has(li):not(:has([data-tab="Summary"]))::after,
-.tabs:has(#tab-runs:checked) + .feed:has(li):not(:has([data-tab="runs"]))::after { content: "Nothing recent."; color: #57606a; }
+.tabs button { padding: 0.25rem 0.7rem; border-radius: 999px; background: #e7ebf0; color: #1b1f24; font-size: 0.9rem; }
+.tabs button[aria-pressed="true"] { background: #102542; color: #fff; }

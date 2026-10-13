@@ -67,16 +67,9 @@
 
       <section>
         <h2>Recent notifications</h2>
-        <div class="tabs" role="radiogroup" aria-label="Show">
-          <input type="radio" name="feed-tab" id="tab-all" checked><label for="tab-all">All</label>
-          <input type="radio" name="feed-tab" id="tab-TS1"><label for="tab-TS1">TS1</label>
-          <input type="radio" name="feed-tab" id="tab-TS2"><label for="tab-TS2">TS2</label>
-          <input type="radio" name="feed-tab" id="tab-Muons"><label for="tab-Muons">Muons</label>
-          <input type="radio" name="feed-tab" id="tab-MCR"><label for="tab-MCR">MCR</label>
-          <input type="radio" name="feed-tab" id="tab-Summary"><label for="tab-Summary">Summary</label>
-          <input type="radio" name="feed-tab" id="tab-runs"><label for="tab-runs">Experiments</label>
-        </div>
+        <div id="tabs" class="tabs" role="group" aria-label="Show"></div>
         <ol id="feed" class="feed"></ol>
+        <p id="feed-empty" class="hint" hidden></p>
       </section>
 
       <footer class="hint">

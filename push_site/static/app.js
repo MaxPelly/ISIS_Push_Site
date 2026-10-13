@@ -4,7 +4,8 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const TOPIC_NAMES = { TS1: "TS1 beam", TS2: "TS2 beam", Muons: "Muon beam", MCR: "MCR news", Summary: "Daily beam summary" };
+let topics = [];  // from /api/topics: [{id, label, instrument}]
+let feedTab = "all", feedLoaded = false;
 const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const STANDALONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
@@ -151,13 +152,22 @@ async function pushOff() {
 
 // --- Preferences -----------------------------------------------------------
 
+// The topics, and the feed's tabs: All, each fixed topic, then Experiments (every instrument's).
+async function loadTopics() {
+  topics = await api("GET", "/api/topics");
+  const tabs = [["all", "All"], ...topics.filter((t) => !t.instrument).map((t) => [t.id, t.id]), ["runs", "Experiments"]];
+  $("tabs").replaceChildren(...tabs.map(([id, label]) => el("button", {
+    type: "button", textContent: label, onclick: () => showTab(id),
+  })));
+  $("tabs").querySelectorAll("button").forEach((b, i) => { b.dataset.tab = tabs[i][0]; });
+  showTab(feedTab);
+}
+
 async function loadPrefs() {
-  const [offered, prefs] = await Promise.all([api("GET", "/api/topics"), api("GET", "/api/prefs")]);
-  // Keep topics this device chose that aren't offered any more, so saving doesn't drop them.
-  const topics = [...offered, ...prefs.topics.filter((t) => !offered.includes(t))];
+  const prefs = await api("GET", "/api/prefs");
   $("topics").replaceChildren(el("legend", { textContent: "Topics" }), ...topics.map((topic) => el("label", {},
-    el("input", { type: "checkbox", name: "topic", value: topic, checked: prefs.topics.includes(topic) }),
-    ` ${Object.hasOwn(TOPIC_NAMES, topic) ? TOPIC_NAMES[topic] : `${topic} runs`}`)));
+    el("input", { type: "checkbox", name: "topic", value: topic.id, checked: prefs.topics.includes(topic.id) }),
+    ` ${topic.label}`)));
   const quiet = prefs.quiet;
   $("quiet-on").checked = !!quiet;
   if (quiet) {
@@ -188,11 +198,11 @@ async function savePrefs(event) {
 function feedItem(n, focused) {
   const item = el("li", { className: `${n.severity}${focused ? " focus" : ""}` },
     el("div", { className: "title", textContent: `${n.emoji} ${n.title}`.trim() }));
-  if (n.topic) item.dataset.tab = Object.hasOwn(TOPIC_NAMES, n.topic) ? n.topic : "runs";  // the CSS shows it under that tab
+  const topic = topics.find((t) => t.id === n.topic);
+  if (n.topic) item.dataset.tab = topic && !topic.instrument ? n.topic : "runs";
   const when = new Date(n.timestamp);
   if (n.timestamp && !isNaN(when)) item.append(el("time", { dateTime: n.timestamp, textContent: when.toLocaleString() }));
   if (n.text) item.append(el("p", { textContent: n.text }));
-  if (n.flavour) item.append(el("p", { className: "flavour", textContent: n.flavour }));
   if (n.facts.length) {
     item.append(el("dl", {}, ...n.facts.flatMap(([key, value]) => [el("dt", { textContent: key }), el("dd", { textContent: value })])));
   }
@@ -206,9 +216,22 @@ async function loadFeed(scrollToFocus) {
   const focus = hashParam("n");
   const items = await api("GET", "/api/feed");  // all the site keeps, so each tab has its history
   $("feed").replaceChildren(...items.map((n) => feedItem(n, n.id === focus)));
-  $("feed").classList.add("loaded");  // the CSS then says if it's empty
-  if (scrollToFocus && focus) $("tab-all").checked = true;  // so the tapped notification isn't filtered out
+  feedLoaded = true;
+  showTab(scrollToFocus && focus ? "all" : feedTab);  // so a tapped notification isn't filtered out
   if (scrollToFocus) document.querySelector(".feed .focus")?.scrollIntoView({ block: "center" });
+}
+
+// Shows only the feed items under `tab`, saying so if there are none (once the feed has loaded).
+function showTab(tab) {
+  feedTab = tab;
+  $("tabs").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tab === tab)));
+  let shown = 0;
+  for (const item of $("feed").children) {
+    item.hidden = tab !== "all" && item.dataset.tab !== tab;
+    shown += !item.hidden;
+  }
+  $("feed-empty").textContent = $("feed").children.length ? "Nothing recent." : "Nothing yet.";
+  $("feed-empty").hidden = !feedLoaded || shown > 0;
 }
 
 // --- Status ----------------------------------------------------------------
@@ -304,6 +327,7 @@ async function showApp(me) {
   $("app").hidden = false;
   $("label").textContent = me.label;
   pollStatus();
+  await loadTopics();  // the feed's tabs and the preferences need them
   await Promise.all([refreshPush().catch((e) => message(e.message)), loadPrefs(), loadFeed(true)]);
 }
 

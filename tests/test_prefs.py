@@ -73,12 +73,21 @@ async def test_prefs_api(site):
     assert resp.status == 400 and await resp.text() == "bad topics"
 
 
+async def test_topics_offered_include_ones_this_device_chose_that_have_gone(site):
+    token = await signed_in(site)
+    await api(site, "PUT", "/api/prefs", {"topics": ["TS1", "OLDINST"], "quiet": None}, token=token)
+    topics = await (await api(site, "GET", "/api/topics", token=token)).json()
+    assert topics[-1] == {"id": "OLDINST", "label": "OLDINST runs", "instrument": True}
+
+
 async def test_topics_and_feed_api(site):
     token = await signed_in(site)
     for i, topic in enumerate(["PEARL", "TS1", "WISH"]):
         await site.post("/ingest", **signed(payload(id=f"{i}", topic=topic)))
     topics = await (await api(site, "GET", "/api/topics", token=token)).json()
-    assert topics == ["TS1", "TS2", "Muons", "MCR", "Summary", "PEARL", "WISH"]
+    assert [t["id"] for t in topics] == ["TS1", "TS2", "Muons", "MCR", "Summary", "PEARL", "WISH"]
+    assert topics[2] == {"id": "Muons", "label": "Muon beam", "instrument": False}
+    assert topics[5] == {"id": "PEARL", "label": "PEARL runs", "instrument": True}
     feed = await (await api(site, "GET", "/api/feed?limit=2", token=token)).json()
     assert [n["id"] for n in feed] == ["2", "1"]
     assert (await api(site, "GET", "/api/feed?limit=lots", token=token)).status == 400

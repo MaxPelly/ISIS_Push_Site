@@ -6,6 +6,8 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- The feed's tabs are built from the topics the site knows (`/api/topics` now gives each topic's `id`, `label` and whether it's an instrument's, including any this device chose that aren't offered any more), instead of being written out in the page and its CSS. Feed items no longer show a flavour line, which the monitor stopped sending.
+
 - A Status section at the top of the page shows the monitor's latest status: each beam's current, power and last 24h, each instrument's run with its progress to its target (≈ for an auto target), the MCR news, and when it was updated, or that the monitor is offline. It's read every 30 seconds while the page is open.
 
 - The monitor can post its status (beams with their last 24h, each instrument's run, MCR news, health) to `/ingest/status`, signed like notifications; the site keeps the newest and serves it to signed-in devices at `/api/status`, marked stale if the monitor stops sending. A reverse proxy should refuse `/ingest/*` as well as `/ingest`.

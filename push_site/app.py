@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from push_site import __version__
 from push_site.config import Config
-from push_site.prefs import BASE_TOPICS, KIND_COUNT, parse_prefs
+from push_site.prefs import BASE_TOPICS, KIND_COUNT, parse_prefs, topic_info
 from push_site.status import parse_status
 from push_site.storage import DEVICE_IDLE_LIMIT, Store
 
@@ -336,9 +336,13 @@ async def put_prefs(request: web.Request, device_id: int) -> web.Response:
 
 @signed_in
 async def topics(request: web.Request, device_id: int) -> web.Response:
-    """The topics to offer: the fixed ones, then instruments seen recently."""
-    seen = [t for t in request.app[STORE].topics() if t not in BASE_TOPICS]
-    return web.json_response(list(BASE_TOPICS) + seen)
+    """The topics to offer, each with its label: the fixed ones, then
+    instruments seen recently, then any others this device chose, so saving
+    its preferences doesn't drop them."""
+    store = request.app[STORE]
+    offered = list(BASE_TOPICS) + [t for t in store.topics() if t not in BASE_TOPICS]
+    offered += [t for t in store.prefs(device_id)["topics"] if t not in offered]
+    return web.json_response([topic_info(t) for t in offered])
 
 
 @signed_in

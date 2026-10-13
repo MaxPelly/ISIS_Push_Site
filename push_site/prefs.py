@@ -6,6 +6,14 @@ from zoneinfo import ZoneInfo
 # Topics the monitor always sends; instruments add their own names.
 BASE_TOPICS = ("TS1", "TS2", "Muons", "MCR", "Summary")
 DEFAULT_PREFS = {"topics": list(BASE_TOPICS), "quiet": None}
+# How the page names each topic.
+TOPIC_LABELS = {"TS1": "TS1 beam", "TS2": "TS2 beam", "Muons": "Muon beam", "MCR": "MCR news", "Summary": "Daily beam summary"}
+
+
+def topic_info(topic: str) -> dict:
+    """A topic as /api/topics gives it to the page; any other is an instrument's."""
+    instrument = topic not in TOPIC_LABELS
+    return {"id": topic, "label": f"{topic} runs" if instrument else TOPIC_LABELS[topic], "instrument": instrument}
 # The feed keeps the newest notifications of each kind separately, so a burst
 # of beam cards can't push the rest out. Any other topic is an instrument's.
 FEED_KINDS = {"TS1": "beam", "TS2": "beam", "Muons": "beam", "MCR": "mcr", "Summary": "summary"}
