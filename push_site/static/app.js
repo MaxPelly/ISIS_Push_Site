@@ -211,11 +211,99 @@ async function loadFeed(scrollToFocus) {
   if (scrollToFocus) document.querySelector(".feed .focus")?.scrollIntoView({ block: "center" });
 }
 
+// --- Status ----------------------------------------------------------------
+
+const SVG = "http://www.w3.org/2000/svg";
+const STATUS_POLL = 30000;  // ms between reads of /api/status while the page is visible
+let statusTimer = null;
+
+function time(iso) {
+  const when = new Date(iso);
+  return iso && !isNaN(when) ? when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+}
+
+function powerClass(power) {
+  return `power-${["high", "medium", "low", "off"].includes(power) ? power : "unknown"}`;
+}
+
+// The last 24h as a line, one polyline per stretch at one power, coloured by it.
+function sparkline(history) {
+  const values = history.values;
+  const top = Math.max(1, ...values.map(([current]) => current ?? 0));
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("class", "spark");
+  svg.setAttribute("viewBox", `0 0 ${Math.max(values.length - 1, 1)} 20`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("aria-hidden", "true");
+  let line = null, power = null;
+  values.forEach(([current, p], i) => {
+    if (current === null) {
+      line = null;
+      return;
+    }
+    const point = `${i},${(20 - (current / top) * 19).toFixed(2)}`;
+    if (!line || p !== power) {
+      const previous = line && line.getAttribute("points").split(" ").pop();
+      line = document.createElementNS(SVG, "polyline");
+      line.setAttribute("class", powerClass(p));
+      line.setAttribute("points", previous ? `${previous} ${point}` : point);  // joined to the last stretch
+      svg.append(line);
+      power = p;
+    } else {
+      line.setAttribute("points", `${line.getAttribute("points")} ${point}`);
+    }
+  });
+  return svg;
+}
+
+function beamRow(beam) {
+  const current = beam.current === null ? "—" : `${beam.current.toFixed(1)} µA`;
+  const since = beam.since ? ` since ${time(beam.since)}` : "";
+  return el("div", { className: `beam ${powerClass(beam.power)}` },
+    el("span", { className: "name", textContent: beam.name }),
+    el("span", { className: "now" }, el("b", { textContent: beam.power }), ` ${current}${since}`),
+    sparkline(beam.history));
+}
+
+function instrumentRow(inst, powers) {
+  const progress = el("progress", { max: inst.target || 1, value: Math.max(inst.counts ?? 0, 0) });
+  const counts = inst.counts === null ? "—" : inst.counts.toFixed(1);
+  const target = inst.target === null ? "" : ` / ${inst.auto ? "≈" : ""}${inst.target} µA·h`;
+  return el("div", { className: `instrument ${powerClass(powers[inst.beam])}` },
+    el("span", { className: "name", textContent: inst.name, title: `${inst.beam} beam` }),
+    el("span", { textContent: inst.run_number ? `${inst.run_number} ${inst.run_state.toLowerCase()}` : inst.run_state }),
+    el("span", { className: "title", textContent: inst.title, title: inst.title }),
+    el("span", {}, progress, el("span", { className: "counts", textContent: `${counts}${target}` })));
+}
+
+async function loadStatus() {
+  const { status, received_at: receivedAt, stale } = await api("GET", "/api/status");
+  $("status-none").hidden = !!status;
+  if (!status) return;
+  const powers = Object.fromEntries(status.beams.map((b) => [b.name, b.power]));
+  $("beams").replaceChildren(...status.beams.map(beamRow));
+  $("instruments").replaceChildren(...status.instruments.map((inst) => instrumentRow(inst, powers)));
+  $("mcr").textContent = status.mcr.news;
+  const age = $("status-age");
+  age.classList.toggle("offline", stale);
+  const received = new Date(receivedAt * 1000);
+  age.textContent = stale ? `Monitor offline since ${received.toLocaleString()}`
+    : `Updated ${Math.max(0, Math.round((Date.now() - received) / 1000))} s ago`;
+}
+
+// Reads the status now and every STATUS_POLL while the page is visible.
+function pollStatus() {
+  clearTimeout(statusTimer);
+  if (document.hidden || $("app").hidden) return;
+  loadStatus().catch(() => {}).finally(() => { statusTimer = setTimeout(pollStatus, STATUS_POLL); });
+}
+
 // --- Start -----------------------------------------------------------------
 
 async function showApp(me) {
   $("app").hidden = false;
   $("label").textContent = me.label;
+  pollStatus();
   await Promise.all([refreshPush().catch((e) => message(e.message)), loadPrefs(), loadFeed(true)]);
 }
 
@@ -248,6 +336,7 @@ async function start() {
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && !$("app").hidden) loadFeed(false).catch(() => {});
+    pollStatus();  // and stops polling while hidden
   });
 
   let me = null;

@@ -6,6 +6,8 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- A Status section at the top of the page shows the monitor's latest status: each beam's current, power and last 24h, each instrument's run with its progress to its target (≈ for an auto target), the MCR news, and when it was updated, or that the monitor is offline. It's read every 30 seconds while the page is open.
+
 - The monitor can post its status (beams with their last 24h, each instrument's run, MCR news, health) to `/ingest/status`, signed like notifications; the site keeps the newest and serves it to signed-in devices at `/api/status`, marked stale if the monitor stops sending. A reverse proxy should refuse `/ingest/*` as well as `/ingest`.
 
 ## [1.0.3] - 2026-10-13

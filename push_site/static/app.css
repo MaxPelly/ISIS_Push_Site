@@ -16,6 +16,31 @@ button.link { background: none; color: #1f6feb; padding: 0; text-decoration: und
 .hint { color: #57606a; font-size: 0.9rem; }
 .version { text-align: center; font-size: 0.8rem; }
 .message { background: #fff1e6; border-left: 4px solid #d1242f; padding: 0.6rem 0.8rem; border-radius: 6px; }
+/* Status. Power colours as in the monitor's TUI. */
+.power-high { --power: #1a7f37; }
+.power-medium { --power: #bf8700; }
+.power-low { --power: #d4730b; }
+.power-off { --power: #d1242f; }
+.power-unknown { --power: #8c959f; }
+.beam { display: grid; grid-template-columns: 4.5rem 1fr; align-items: center; gap: 0 0.6rem; margin-bottom: 0.5rem; }
+.beam .name { font-weight: 600; border-left: 4px solid var(--power); padding-left: 0.4rem; }
+.beam .now { font-size: 0.9rem; }
+.beam .now b { color: var(--power); }
+.spark { grid-column: 2; width: 100%; height: 1.6rem; }
+.spark polyline { fill: none; stroke: var(--power); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.instruments { margin: 0.6rem 0; }
+.instrument { display: grid; grid-template-columns: 4.5rem 5.5rem 1fr 8rem; gap: 0 0.6rem; align-items: center;
+  padding: 0.3rem 0; border-top: 1px solid #e7ebf0; font-size: 0.9rem; }
+.instrument .name { font-weight: 600; border-left: 4px solid var(--power); padding-left: 0.4rem; }
+.instrument .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.instrument progress { width: 100%; }
+.instrument .counts { display: block; font-size: 0.8rem; color: #57606a; }
+@media (max-width: 30rem) {  /* two lines per instrument, as the TUI's compact layout */
+  .instrument { grid-template-columns: 4.5rem 5.5rem 1fr; }
+  .instrument .title { grid-column: 1 / -1; grid-row: 2; }
+}
+.mcr { white-space: pre-line; font-size: 0.9rem; }
+#status-age.offline { color: #d1242f; font-weight: 600; }
 .feed { list-style: none; margin: 0; padding: 0; }
 .feed li { border-left: 4px solid #8c959f; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; background: #f8f9fb; border-radius: 4px; }
 .feed li.good { border-color: #1a7f37; }

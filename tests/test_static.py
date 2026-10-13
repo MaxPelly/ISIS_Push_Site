@@ -58,3 +58,10 @@ async def test_feed_has_a_tab_and_a_css_filter_for_every_fixed_topic(site):
     for tab in (*BASE_TOPICS, "runs"):
         assert f'id="tab-{tab}"' in html, tab
         assert f'li:not([data-tab="{tab}"])' in css and f':not(:has([data-tab="{tab}"]))::after' in css, tab
+
+
+async def test_page_has_a_status_section_that_polls_the_status(site):
+    html = await (await site.get("/")).text()
+    js = await (await site.get("/static/app.js")).text()
+    assert 'id="status"' in html and html.index('id="status"') < html.index('id="prefs"')  # at the top
+    assert '"/api/status"' in js and "createElementNS" in js  # the sparkline is built, not inline markup
