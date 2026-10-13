@@ -63,3 +63,9 @@ async def test_page_has_a_status_section_that_polls_the_status(site):
     js = await (await site.get("/static/app.js")).text()
     assert 'id="status"' in html and html.index('id="status"') < html.index('id="prefs"')  # at the top
     assert '"/api/status"' in js and "createElementNS" in js  # the sparkline is built, not inline markup
+
+
+async def test_the_assets_urls_change_with_each_release(site):
+    html = await (await site.get("/")).text()
+    assert f'href="/static/app.css?v={__version__}"' in html and f'src="/static/app.js?v={__version__}"' in html
+    assert (await site.get(f"/static/app.js?v={__version__}")).status == 200

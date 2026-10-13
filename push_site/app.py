@@ -64,7 +64,7 @@ _HOST_RE = re.compile(r"[a-z0-9.-]+")
 
 CONFIG = web.AppKey("config", Config)
 VAPID_PUBLIC_KEY = web.AppKey("vapid_public_key", str)
-INDEX = web.AppKey("index", str)  # index.html, before {{version}} is filled in
+INDEX = web.AppKey("index", str)  # index.html, before {{version}} and {{release}} are filled in
 STORE = web.AppKey("store", Store)
 # Called with each newly stored notification (fan-out to push subscribers);
 # it must not block or raise, since the notification is already stored.
@@ -387,7 +387,10 @@ async def _index(request: web.Request) -> web.Response:
     version = f"ISIS Push Site v{__version__}"
     if newest and newest[0].get("monitor_version"):
         version += f" · ISIS Beam Monitor v{html.escape(newest[0]['monitor_version'])}"
-    return web.Response(text=request.app[INDEX].replace("{{version}}", version), content_type="text/html",
+    # The assets' URLs change with each release, so no cache (e.g. a CDN's browser cache
+    # TTL overriding no-cache) can keep serving the last release's.
+    page = request.app[INDEX].replace("{{version}}", version).replace("{{release}}", __version__)
+    return web.Response(text=page, content_type="text/html",
                         headers={"Cache-Control": "no-cache"})
 
 

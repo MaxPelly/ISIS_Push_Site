@@ -6,6 +6,10 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-13
+
+- The page asks for its script and styles under a new URL each release (`app.js?v=1.1.2`), so a phone gets them straight away even where a cache in front of the site, such as Cloudflare's Browser Cache TTL, overrides their `no-cache` and keeps the last release's for hours.
+
 ## [1.1.1] - 2026-10-13
 
 - The Status section says when the status was last updated ("Updated at 14:32:05", in the device's time) instead of how many seconds ago, which said little between the monitor's once-a-minute updates.
