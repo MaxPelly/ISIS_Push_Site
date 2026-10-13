@@ -289,7 +289,9 @@ function beamRow(beam) {
 }
 
 function instrumentRow(inst, powers) {
-  const progress = el("progress", { max: inst.target || 1, value: Math.max(inst.counts ?? 0, 0) });
+  // An empty bar (no value: indeterminate) without a target to measure against.
+  const progress = inst.target > 0 ? el("progress", { max: inst.target, value: Math.max(inst.counts ?? 0, 0) })
+    : el("progress", { max: 1 });
   const counts = inst.counts === null ? "—" : inst.counts.toFixed(1);
   const target = inst.target === null ? "" : ` / ${inst.auto ? "≈" : ""}${inst.target} µA·h`;
   return el("div", { className: `instrument ${powerClass(powers[inst.beam])}` },
@@ -299,10 +301,13 @@ function instrumentRow(inst, powers) {
     el("span", {}, progress, el("span", { className: "counts", textContent: `${counts}${target}` })));
 }
 
+let statusReceived = null;  // when the status shown came, by the server's clock, as Date.now() - age
+
 async function loadStatus() {
-  const { status, received_at: receivedAt, stale } = await api("GET", "/api/status");
+  const { status, received_at: receivedAt, age: ageSeconds, stale } = await api("GET", "/api/status");
   $("status-none").hidden = !!status;
   if (!status) return;
+  statusReceived = Date.now() - ageSeconds * 1000;
   const powers = Object.fromEntries(status.beams.map((b) => [b.name, b.power]));
   $("beams").replaceChildren(...status.beams.map(beamRow));
   $("instruments").replaceChildren(...status.instruments.map((inst) => instrumentRow(inst, powers)));
@@ -311,23 +316,35 @@ async function loadStatus() {
   age.classList.toggle("offline", stale);
   const received = new Date(receivedAt * 1000);
   age.textContent = stale ? `Monitor offline since ${received.toLocaleString()}`
-    : `Updated ${Math.max(0, Math.round((Date.now() - received) / 1000))} s ago`;
+    : `Updated ${Math.round(ageSeconds)} s ago`;
+}
+
+// A failed read leaves the status shown, but says how old it is.
+function statusFailed(e) {
+  if (e.status === 401) {  // this device was removed or signed out: back to joining
+    location.replace("/");
+    return;
+  }
+  const age = $("status-age");
+  age.classList.add("offline");
+  age.textContent = statusReceived === null ? "Couldn't read the status."
+    : `Couldn't update; last updated ${Math.round((Date.now() - statusReceived) / 1000)} s ago.`;
 }
 
 // Reads the status now and every STATUS_POLL while the page is visible.
 function pollStatus() {
   clearTimeout(statusTimer);
   if (document.hidden || $("app").hidden) return;
-  loadStatus().catch(() => {}).finally(() => { statusTimer = setTimeout(pollStatus, STATUS_POLL); });
+  loadStatus().catch(statusFailed).finally(() => { statusTimer = setTimeout(pollStatus, STATUS_POLL); });
 }
 
 // --- Start -----------------------------------------------------------------
 
 async function showApp(me) {
-  $("app").hidden = false;
   $("label").textContent = me.label;
-  pollStatus();
   await loadTopics();  // the feed's tabs and the preferences need them
+  $("app").hidden = false;
+  pollStatus();
   await Promise.all([refreshPush().catch((e) => message(e.message)), loadPrefs(), loadFeed(true)]);
 }
 

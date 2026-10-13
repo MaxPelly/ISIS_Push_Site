@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 from urllib.parse import urlsplit
@@ -172,6 +173,9 @@ async def ingest_status(request: web.Request) -> web.Response:
     body = await _authorised_ingest(request)
     try:
         status = parse_status(json.loads(body))
+        if datetime.fromisoformat(status["generated_at"]).timestamp() > time.time() + MAX_CLOCK_SKEW:
+            # Kept, it would hold back every status until the monitor's clock caught up with it.
+            raise ValueError("generated_at is in the future")
     except (ValueError, RecursionError) as exc:
         logger.warning(f"Rejected a status payload: {exc}")
         raise web.HTTPBadRequest(text=str(exc))
@@ -363,8 +367,9 @@ async def get_status(request: web.Request, device_id: int) -> web.Response:
     if kept is None:
         return web.json_response({"status": None})
     status, received_at = kept
-    stale = time.time() - received_at > STALE_INTERVALS * status["interval_s"]
-    return web.json_response({"status": status, "received_at": received_at, "stale": stale})
+    age = max(time.time() - received_at, 0.0)  # by the site's clock, as the phone's may differ
+    stale = age > STALE_INTERVALS * status["interval_s"]
+    return web.json_response({"status": status, "received_at": received_at, "age": age, "stale": stale})
 
 
 def _file(name: str, content_type: str, cache: str = "no-cache"):

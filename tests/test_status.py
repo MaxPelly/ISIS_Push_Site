@@ -92,3 +92,23 @@ async def test_status_needs_signing_in_and_a_signature(site):
     assert (await site.post("/ingest/status", **forwarded)).status == 404
     assert (await site.post("/ingest/status", **signed(status(v=2)))).status == 400
     assert site.store.status() is None
+
+
+@pytest.mark.parametrize("change", [{"v": True}, {"v": 1.0}, {"interval_s": 10 ** 400}])
+def test_odd_numbers_are_refused_cleanly(change):
+    with pytest.raises(ValueError):
+        parse_status({**status(), **change})
+
+
+async def test_a_status_from_the_future_is_refused(site):
+    """Kept, it would hold back every status until the monitor's clock caught up."""
+    resp = await site.post("/ingest/status", **signed(status(generated_at="2099-01-01T00:00:00+00:00")))
+    assert resp.status == 400 and site.store.status() is None
+
+
+async def test_the_status_age_is_by_the_sites_clock(site):
+    token = await signed_in(site)
+    await site.post("/ingest/status", **signed(status()))
+    with patch.object(site_app.time, "time", return_value=site.store.status()[1] + 42):
+        body = await (await api(site, "GET", "/api/status", token=token)).json()
+    assert body["age"] == pytest.approx(42) and body["stale"] is False

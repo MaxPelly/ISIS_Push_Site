@@ -14,8 +14,9 @@ it to signed-in devices. Version 1:
      "mcr": {"news", "seen_at": ISO time or null}}
 
 parse_status() keeps exactly these fields, type-checked and bounded, so
-nothing else reaches the page. Every length limit keeps a full status well
-under the site's 64 KB request limit.
+nothing else reaches the page. A status from the monitor's 20 or so
+instruments, at the longest strings, is well under the site's 64 KB request
+limit; the list bounds stop anything else growing without limit.
 """
 import json
 import math
@@ -35,9 +36,12 @@ def _str(limit: int) -> Callable[[Any], str]:
 
 
 def _number(value: Any) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise ValueError("expected a finite number")
-    return float(value)
+    try:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError
+        return float(value)
+    except (ValueError, OverflowError):  # e.g. a 400-digit integer
+        raise ValueError("expected a finite number") from None
 
 
 def _time(value: Any) -> str:
@@ -103,7 +107,7 @@ def _interval(value: Any) -> float:
 
 
 _STATUS = _object(
-    v=lambda v: v if v == 1 else _fail("expected version 1"),
+    v=lambda v: v if type(v) is int and v == 1 else _fail("expected version 1"),
     kind=lambda v: v if v == "status" else _fail('expected "status"'),
     generated_at=_time,
     interval_s=_interval,
