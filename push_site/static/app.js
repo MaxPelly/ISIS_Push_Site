@@ -166,7 +166,9 @@ async function loadTopics() {
 
 async function loadPrefs() {
   const prefs = await api("GET", "/api/prefs");
-  $("topics").replaceChildren(el("legend", { textContent: "Topics" }), ...topics.map((topic) => el("label", {},
+  // If the topics couldn't be loaded, at least this device's own, so saving keeps them.
+  const offered = topics.length ? topics : prefs.topics.map((id) => ({ id, label: id }));
+  $("topics").replaceChildren(el("legend", { textContent: "Topics" }), ...offered.map((topic) => el("label", {},
     el("input", { type: "checkbox", name: "topic", value: topic.id, checked: prefs.topics.includes(topic.id) }),
     ` ${topic.label}`)));
   const quiet = prefs.quiet;
