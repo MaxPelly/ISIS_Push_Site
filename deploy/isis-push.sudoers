@@ -1,0 +1,13 @@
+# Optional: lets members of isis-push-admin run the site's admin commands
+# (/usr/local/bin/isis-push, from deploy/isis-push) as isis-push without
+# being root or full sudoers. The rule allows only that wrapper, which only
+# runs invite, devices and revoke; what that grants is minting invite links
+# (anyone with one can sign in and read the notifications) and revoking
+# devices, so only add people you'd trust with that.
+#   sudo groupadd --system isis-push-admin && sudo usermod -aG isis-push-admin "$USER"
+#   sudo install -m 440 deploy/isis-push.sudoers /etc/sudoers.d/isis-push && sudo visudo -c
+# The wrapper must be installed at the path below, owned by root. If the site
+# runs as another user, change (isis-push) to match the wrapper's user=.
+# (sudo skips files in sudoers.d whose names contain a dot, so keep it "isis-push".)
+# Add NOPASSWD: before the path to skip the password prompt.
+%isis-push-admin ALL=(isis-push) /usr/local/bin/isis-push

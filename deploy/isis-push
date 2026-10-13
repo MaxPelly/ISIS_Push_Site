@@ -1,0 +1,32 @@
+#!/bin/sh
+# The site's admin commands, run as the site's user from any directory and any
+# account that may sudo to it (root, a sudoer, or see deploy/isis-push.sudoers):
+#   isis-push invite --label "Alex's phone" [--uses N] [--days D]
+#   isis-push devices
+#   isis-push revoke ID
+# EDIT before installing: set site to the push site's directory, python to its
+# venv's interpreter and user to the account the site runs as (isis-push in
+# the README). Install it at /usr/local/bin/isis-push, the path the sudoers
+# rule names, owned by root and not writable by anyone else:
+#   sed -e "/^#/!s|/path/to/ISIS_Beam_Monitor|$MONITOR_DIR|g" \
+#       -e "s|^python=.*|python=$MONITOR_DIR/push_site/.venv/bin/python|" \
+#       -e "s|^user=.*|user=isis-push|" deploy/isis-push \
+#     | sudo tee /usr/local/bin/isis-push >/dev/null && sudo chmod 755 /usr/local/bin/isis-push
+set -eu
+site=/path/to/ISIS_Beam_Monitor/push_site
+python=/path/to/ISIS_Beam_Monitor/push_site/.venv/bin/python
+user=isis-push
+
+case "${1:-}" in
+    invite|devices|revoke) ;;
+    *) echo "usage: isis-push invite|devices|revoke ... (add --help for a command's options)" >&2; exit 2 ;;
+esac
+
+if [ "$(id -un)" != "$user" ]; then
+    exec sudo -u "$user" -- "$0" "$@"
+fi
+# python -m imports from the working directory, so run it from the site's own.
+cd "$site"
+command=$1
+shift
+exec "$python" -m push_site "$command" push_site.ini "$@"

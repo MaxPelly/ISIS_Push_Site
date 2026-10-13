@@ -116,16 +116,27 @@ Nothing in the site or the monitor needs changing. The daemon still posts to `12
 
 ## Inviting people
 
-From `$MONITOR_DIR/push_site`, as `isis-push`, which owns the database:
+The admin commands run as `isis-push`, which owns the database. `deploy/isis-push` wraps them so they work from any directory and switch to that user with `sudo`. Install it once from `$MONITOR_DIR/push_site`, at `/usr/local/bin/isis-push` (the path `deploy/isis-push.sudoers` names). Change the `python=` line if your venv isn't `push_site/.venv`, and the `user=` line if the site runs as another user:
 
 ```bash
-sudo -u isis-push .venv/bin/python -m push_site invite push_site.ini --label "Alex's phone"
-# --uses N lets N devices join with one link; --days D sets how long it's valid (default 7)
-sudo -u isis-push .venv/bin/python -m push_site devices push_site.ini
-sudo -u isis-push .venv/bin/python -m push_site revoke push_site.ini 3
+sed -e "/^#/!s|/path/to/ISIS_Beam_Monitor|$MONITOR_DIR|g" \
+    -e "s|^python=.*|python=$MONITOR_DIR/push_site/.venv/bin/python|" \
+    -e "s|^user=.*|user=isis-push|" deploy/isis-push \
+  | sudo tee /usr/local/bin/isis-push >/dev/null && sudo chmod 755 /usr/local/bin/isis-push
 ```
 
-The admin commands refuse to run as root, since files they created would then be unwritable by the site.
+Then, as root or any account that can use `sudo`:
+
+```bash
+isis-push invite --label "Alex's phone"
+# --uses N lets N devices join with one link; --days D sets how long it's valid (default 7)
+isis-push devices
+isis-push revoke 3
+```
+
+To let accounts without full `sudo` (such as the monitor's user) run these, install `deploy/isis-push.sudoers`. Its comments give the steps. It lets them mint invite links and revoke devices, nothing more. Without the wrapper, the same commands are `sudo -u isis-push .venv/bin/python -m push_site invite push_site.ini ...`, run from `$MONITOR_DIR/push_site`.
+
+The admin commands refuse to run as root, since files they created would then be unwritable by the site. The wrapper switches to `isis-push` first, so running it as root works.
 
 Send the link it prints. The person receiving it then does one of the following:
 
