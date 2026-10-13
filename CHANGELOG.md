@@ -6,6 +6,8 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- A device's refused push only removes that device's subscription, not one another device has since claimed with the same endpoint.
+
 ## [1.0.2] - 2026-10-10
 
 - The recent-notifications feed has tabs (All, TS1, TS2, Muons, MCR, Summary and Experiments) to read the history of one kind of notification, and shows the whole stored feed rather than the newest 50.

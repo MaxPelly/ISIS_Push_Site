@@ -181,10 +181,11 @@ class Store:
         with self.db:
             self.db.execute("DELETE FROM subscriptions WHERE device_id = ?", (device_id,))
 
-    def delete_endpoint(self, endpoint: str) -> None:
-        """Drop a subscription the push service says has gone."""
+    def delete_endpoint(self, endpoint: str, device_id: int) -> None:
+        """Drop a subscription the push service says has gone. Only the
+        device it was sent to: another may have claimed the endpoint since."""
         with self.db:
-            self.db.execute("DELETE FROM subscriptions WHERE endpoint = ?", (endpoint,))
+            self.db.execute("DELETE FROM subscriptions WHERE endpoint = ? AND device_id = ?", (endpoint, device_id))
 
     def prefs(self, device_id: int) -> dict:
         return json.loads(self.db.execute("SELECT prefs FROM devices WHERE id = ?", (device_id,)).fetchone()["prefs"])

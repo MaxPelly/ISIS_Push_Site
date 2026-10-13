@@ -116,6 +116,21 @@ async def test_gone_subscriptions_are_removed(store, vapid, caplog, status, kept
     assert "secret-endpoint" not in caplog.text
 
 
+async def test_a_reclaimed_endpoint_survives_its_old_devices_refusal(store, vapid):
+    """The browser signs in again as a new device while a push to its old
+    one is in flight: the old one's 410 mustn't delete the new subscription."""
+    endpoint = "https://fcm.googleapis.com/x"
+    add_device(store, endpoint)
+
+    async def send(*args, **kwargs):
+        new = add_device(store, endpoint)
+        send.new = new
+        raise WebPushException("gone", response=MagicMock(status=410))
+    with patch.object(push, "webpush_async", new=send):
+        await Pusher(store, vapid, SUBJECT).fan_out(MagicMock(), notification())
+    assert [t["device_id"] for t in store.push_targets()] == [send.new]
+
+
 @pytest.mark.parametrize("statuses, kept", [
     ([403] * push.MAX_REFUSALS, False),
     ([403] * (push.MAX_REFUSALS - 1), True),

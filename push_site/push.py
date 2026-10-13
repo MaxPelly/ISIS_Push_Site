@@ -151,7 +151,7 @@ class Pusher:
                 else:  # a server error: the push service may be having a bad day
                     self._refusals.pop(endpoint, None)
                 if status in (404, 410) or self._refusals.get(endpoint, 0) >= MAX_REFUSALS:  # 404/410: unsubscribed
-                    self.store.delete_endpoint(endpoint)
+                    self.store.delete_endpoint(endpoint, target["device_id"])
                     self._refusals.pop(endpoint, None)
                     logger.info(f"Removed device {target['device_id']}'s push subscription (HTTP {status})")
                 else:  # no endpoint in the log: it's a bearer capability for that device
