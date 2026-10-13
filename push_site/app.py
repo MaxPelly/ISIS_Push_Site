@@ -136,18 +136,25 @@ def _direct_from_localhost(request: web.Request) -> bool:
     return ip.is_loopback and not any(h in request.headers for h in _PROXY_HEADERS)
 
 
-async def ingest(request: web.Request) -> web.Response:
-    """Take a signed notification from the monitor daemon, which calls the
-    site directly on localhost. The reverse proxy should refuse this path;
+async def _authorised_ingest(request: web.Request) -> bytes:
+    """The body of a signed request from the monitor daemon, which calls the
+    site directly on localhost. The reverse proxy should refuse /ingest*;
     any other request is refused here too, in case it doesn't."""
     if not _direct_from_localhost(request):
         raise web.HTTPNotFound()
-    config = request.app[CONFIG]
     body = await _read_body(request)
     headers = request.headers
-    if not _signature_ok(config.ingest_secret, headers.get("X-Timestamp", ""), headers.get("X-Signature", ""), body):
+    secret = request.app[CONFIG].ingest_secret
+    if not _signature_ok(secret, headers.get("X-Timestamp", ""), headers.get("X-Signature", ""), body):
         logger.warning("Rejected an ingest request with a bad or stale signature")
         raise web.HTTPUnauthorized()
+    return body
+
+
+async def ingest(request: web.Request) -> web.Response:
+    """Take a signed notification from the monitor daemon."""
+    config = request.app[CONFIG]
+    body = await _authorised_ingest(request)
     try:
         notification = parse_notification(json.loads(body))
     except (ValueError, RecursionError) as exc:  # including JSONDecodeError and UnicodeDecodeError
