@@ -4,6 +4,7 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
+let signedIn = false;  // since /api/me (or joining) succeeded, even before the app is shown
 let topics = [];  // from /api/topics: [{id, label, instrument}]
 let feedTab = "all", feedLoaded = false;
 const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -341,8 +342,11 @@ function pollStatus() {
 // --- Start -----------------------------------------------------------------
 
 async function showApp(me) {
+  signedIn = true;
+  $("join").hidden = true;
   $("label").textContent = me.label;
-  await loadTopics();  // the feed's tabs and the preferences need them
+  // The feed's tabs and the preferences need them; without, it still shows the rest.
+  await loadTopics().catch((e) => message(`Couldn't load the topics: ${e.message}`));
   $("app").hidden = false;
   pollStatus();
   await Promise.all([refreshPush().catch((e) => message(e.message)), loadPrefs(), loadFeed(true)]);
@@ -368,7 +372,7 @@ async function start() {
   $("forget").onclick = forget;
   // An invite or notification link opened while the page is already open only changes the #hash.
   addEventListener("hashchange", () => {
-    if (!$("app").hidden) {
+    if (signedIn) {
       if (hashParam("invite")) history.replaceState(null, "", "/");  // already joined
       loadFeed(true).catch(() => {});
     } else {
@@ -376,7 +380,7 @@ async function start() {
     }
   });
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && !$("app").hidden) loadFeed(false).catch(() => {});
+    if (!document.hidden && signedIn) loadFeed(false).catch(() => {});
     pollStatus();  // and stops polling while hidden
   });
 
