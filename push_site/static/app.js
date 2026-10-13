@@ -129,6 +129,7 @@ async function pushOn() {
     // Asked first, straight from the tap, as iOS requires.
     if ((await Notification.requestPermission()) === "granted") {
       const registration = await worker;
+      vapidKey = vapidKey || keyBytes((await api("GET", "/api/vapid-key")).key);  // if the page's fetch failed
       await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey });
     }
     await refreshPush();  // also sends the subscription to the server
@@ -204,8 +205,7 @@ function feedItem(n, focused) {
 async function loadFeed(scrollToFocus) {
   const focus = hashParam("n");
   const items = await api("GET", "/api/feed?limit=200");  // all the site keeps by default, so each tab has some history
-  $("feed").replaceChildren(...(items.length ? items.map((n) => feedItem(n, n.id === focus))
-    : [el("li", { textContent: "Nothing yet." })]));
+  $("feed").replaceChildren(...items.map((n) => feedItem(n, n.id === focus)));  // the CSS says when it's empty
   if (scrollToFocus && focus) $("tab-all").checked = true;  // so the tapped notification isn't filtered out
   if (scrollToFocus) document.querySelector(".feed .focus")?.scrollIntoView({ block: "center" });
 }

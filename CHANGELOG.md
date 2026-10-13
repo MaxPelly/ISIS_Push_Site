@@ -6,6 +6,9 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- Turning notifications on fetches the site's push key first if the page couldn't load it earlier, instead of subscribing without one.
+- When the browser replaces a push subscription, the service worker registers the browser's new one rather than making another, and fails visibly if the site refuses it.
+- An empty feed says so once.
 - `deploy/isis-push` wraps the admin commands (`isis-push invite|devices|revoke`) so they run as the site's user from any directory, and `deploy/isis-push.sudoers` optionally lets a group run them without full `sudo`.
 - When every device's push is refused with the same HTTP 400, 401 or 403 (or 80% of them, from 5 devices), the site logs one error pointing at its VAPID key or clock and doesn't count it against the devices, so a site fault no longer removes every subscription. A site with one device can't tell the two apart and still drops it after 20 refusals in a row. HTTP 413 is never counted against a device.
 - A device's refused push only removes that device's subscription, not one another device has since claimed with the same endpoint.

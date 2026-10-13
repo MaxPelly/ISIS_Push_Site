@@ -34,16 +34,26 @@ self.addEventListener("notificationclick", (event) => {
   })());
 });
 
-// The browser replaced the subscription (e.g. it expired): register the new one.
+async function fetchOk(url, options) {
+  const resp = await fetch(url, options);
+  if (!resp.ok) throw new Error(`${url}: HTTP ${resp.status}`);
+  return resp;
+}
+
+// The browser replaced the subscription (e.g. it expired): register the new
+// one, subscribing again only if the browser didn't already.
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil((async () => {
-    const { key } = await (await fetch("/api/vapid-key")).json();
-    const raw = atob(key.replace(/-/g, "+").replace(/_/g, "/"));
-    const sub = await self.registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)),
-    });
-    await fetch("/api/subscription", {
+    let sub = event.newSubscription;
+    if (!sub) {
+      const { key } = await (await fetchOk("/api/vapid-key")).json();
+      const raw = atob(key.replace(/-/g, "+").replace(/_/g, "/"));
+      sub = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: Uint8Array.from(raw, (c) => c.charCodeAt(0)),
+      });
+    }
+    await fetchOk("/api/subscription", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(sub),
