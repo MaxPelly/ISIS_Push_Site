@@ -6,7 +6,7 @@
 # devices, so only add people you'd trust with that.
 #   sudo groupadd --system isis-push-admin && sudo usermod -aG isis-push-admin "$USER"
 # Check it before installing: a broken file in sudoers.d stops sudo working at all.
-#   visudo -cf deploy/isis-push.sudoers && sudo install -m 440 deploy/isis-push.sudoers /etc/sudoers.d/isis-push
+#   sudo visudo -cf deploy/isis-push.sudoers && sudo install -m 440 deploy/isis-push.sudoers /etc/sudoers.d/isis-push
 # The wrapper must be installed at the path below, owned by root. If the site
 # runs as another user, change (isis-push) to match the wrapper's user=.
 # (sudo skips files in sudoers.d whose names contain a dot, so keep it "isis-push".)

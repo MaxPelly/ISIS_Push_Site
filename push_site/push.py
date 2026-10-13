@@ -127,7 +127,7 @@ class Pusher:
             *(self._send(session, semaphore, t, data, urgency) for t in targets), return_exceptions=True
         )
         refusals = [r for r in results if isinstance(r, int)]
-        if site_fault := _site_fault(refusals, len(targets)):
+        if site_fault := _site_fault_status(refusals, len(targets)):
             self._site_fault = site_fault
             logger.error(f"Pushes to {refusals.count(site_fault)} of {len(targets)} devices refused with "
                          f"HTTP {site_fault}; check the VAPID key and the server's clock")
@@ -191,7 +191,7 @@ class Pusher:
         logger.info(f"Removed device {target['device_id']}'s push subscription (HTTP {status})")
 
 
-def _site_fault(refusals: list, attempted: int) -> Optional[int]:
+def _site_fault_status(refusals: list, attempted: int) -> Optional[int]:
     """The status that every push (or, from 5 attempts, 80% of them) was
     refused with, if it's one that points at the site rather than the devices."""
     if attempted < 2 or not refusals:
