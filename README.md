@@ -180,6 +180,10 @@ The body is UTF-8 JSON, at most 64 KB:
 
 Pushes carry only the title, the first 300 characters of the text, the severity and the id. Tapping one opens the app at that notification's feed entry.
 
+## The status payload (version 1)
+
+`POST /ingest/status`, signed in the same way as `/ingest`, carries the monitor's latest view: beam currents and their last 24h, each instrument's run, the MCR news and the monitor's health. Its layout is documented in `push_site/status.py`, which checks every field and bounds every list and string. The site keeps only the newest one (by `generated_at`; an older or repeated one gets `409`), in its database, so a restart can serve it straight away. Signed-in devices read it from `GET /api/status`, which adds `received_at` and `stale` (no status for 3 of its intervals: the monitor is offline). Your reverse proxy should refuse `/ingest/*` as well as `/ingest` (the example Caddyfile does).
+
 ## Development
 
 ```bash

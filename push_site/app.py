@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from push_site import __version__
 from push_site.config import Config
 from push_site.prefs import BASE_TOPICS, KIND_COUNT, parse_prefs
+from push_site.status import parse_status
 from push_site.storage import DEVICE_IDLE_LIMIT, Store
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 # Every request this site accepts is small; MCR news text is the largest
 # thing the monitor sends.
 MAX_BODY = 64 * 1024
+STALE_INTERVALS = 3  # a status this many of its intervals old says the monitor's offline
 MAX_CLOCK_SKEW = 60  # seconds an ingest request's X-Timestamp may be off by
 SEVERITIES = ("info", "good", "warning", "attention")
 _ID_RE = re.compile(r"[0-9a-f-]{1,64}")  # the monitor sends uuid4s; ids also end up in URLs
@@ -162,6 +164,20 @@ async def ingest(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text=str(exc))
     if request.app[STORE].add_notification(notification, config.feed_items_per_kind, config.feed_max_days):
         request.app[ON_NOTIFICATION](notification)
+    return web.Response(status=204)
+
+
+async def ingest_status(request: web.Request) -> web.Response:
+    """Take the monitor's signed status (see status.py) and keep it, if it's the newest."""
+    body = await _authorised_ingest(request)
+    try:
+        status = parse_status(json.loads(body))
+    except (ValueError, RecursionError) as exc:
+        logger.warning(f"Rejected a status payload: {exc}")
+        raise web.HTTPBadRequest(text=str(exc))
+    if not request.app[STORE].set_status(status):
+        logger.debug("Ignored a status no newer than the one kept")
+        raise web.HTTPConflict()
     return web.Response(status=204)
 
 
@@ -336,6 +352,17 @@ async def feed(request: web.Request, device_id: int) -> web.Response:
     return web.json_response(request.app[STORE].feed(limit))
 
 
+@signed_in
+async def get_status(request: web.Request, device_id: int) -> web.Response:
+    """The monitor's latest status; stale if none has come for STALE_INTERVALS of its interval."""
+    kept = request.app[STORE].status()
+    if kept is None:
+        return web.json_response({"status": None})
+    status, received_at = kept
+    stale = time.time() - received_at > STALE_INTERVALS * status["interval_s"]
+    return web.json_response({"status": status, "received_at": received_at, "stale": stale})
+
+
 def _file(name: str, content_type: str, cache: str = "no-cache"):
     """A handler serving one static file. no-cache still allows ETag revalidation,
     so a new version is picked up straight away."""
@@ -365,6 +392,7 @@ def create_app(config: Config, store: Store, on_notification: Callable[[dict], N
     app[INDEX] = (STATIC / "index.html").read_text()
     app.on_response_prepare.append(_add_security_headers)
     app.router.add_post("/ingest", ingest)
+    app.router.add_post("/ingest/status", ingest_status)
     app.router.add_post("/api/redeem", redeem)
     app.router.add_get("/api/me", me)
     app.router.add_delete("/api/me", forget_me)
@@ -375,6 +403,7 @@ def create_app(config: Config, store: Store, on_notification: Callable[[dict], N
     app.router.add_put("/api/prefs", put_prefs)
     app.router.add_get("/api/topics", topics)
     app.router.add_get("/api/feed", feed)
+    app.router.add_get("/api/status", get_status)
     app.router.add_get("/", _index)
     # At the root, so the service worker's scope covers the whole site.
     app.router.add_get("/sw.js", _file("sw.js", "text/javascript; charset=utf-8"))

@@ -10,11 +10,19 @@ import secrets
 import sqlite3
 import time
 from pathlib import Path
-from typing import List, Optional
+from datetime import datetime
+from typing import List, Optional, Tuple
 
 from push_site.prefs import DEFAULT_PREFS, FEED_KINDS, OTHER_KIND
 
 SCHEMA = """
+-- The monitor's latest status (see status.py); generated_at as Unix time.
+CREATE TABLE IF NOT EXISTS status (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    generated_at REAL NOT NULL,
+    received_at REAL NOT NULL,
+    payload TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS feed (
     id TEXT PRIMARY KEY,
     received_at REAL NOT NULL,
@@ -200,6 +208,25 @@ class Store:
     def set_prefs(self, device_id: int, prefs: dict) -> None:
         with self.db:
             self.db.execute("UPDATE devices SET prefs = ? WHERE id = ?", (json.dumps(prefs), device_id))
+
+    def set_status(self, status: dict, now: Optional[float] = None) -> bool:
+        """Keep the monitor's status if it's newer than the one kept; False if
+        it isn't (an older one re-sent, or out of order)."""
+        now = time.time() if now is None else now
+        generated = datetime.fromisoformat(status["generated_at"]).timestamp()
+        with self.db:
+            return self.db.execute(
+                "INSERT INTO status (id, generated_at, received_at, payload) VALUES (1, ?, ?, ?) "
+                "ON CONFLICT (id) DO UPDATE SET generated_at = excluded.generated_at, "
+                "received_at = excluded.received_at, payload = excluded.payload "
+                "WHERE excluded.generated_at > status.generated_at",
+                (generated, now, json.dumps(status, ensure_ascii=False)),
+            ).rowcount == 1
+
+    def status(self) -> Optional[Tuple[dict, float]]:
+        """The status kept, and when it came."""
+        row = self.db.execute("SELECT payload, received_at FROM status").fetchone()
+        return (json.loads(row["payload"]), row["received_at"]) if row else None
 
     def topics(self) -> List[str]:
         return [row["name"] for row in self.db.execute("SELECT name FROM topics ORDER BY name")]

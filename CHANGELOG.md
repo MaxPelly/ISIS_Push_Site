@@ -6,6 +6,8 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- The monitor can post its status (beams with their last 24h, each instrument's run, MCR news, health) to `/ingest/status`, signed like notifications; the site keeps the newest and serves it to signed-in devices at `/api/status`, marked stale if the monitor stops sending. A reverse proxy should refuse `/ingest/*` as well as `/ingest`.
+
 ## [1.0.3] - 2026-10-13
 
 Upgrading: in `push_site.ini`, replace any `[STORAGE] feed_max_items` with `feed_items_per_kind`, and remove `feed_max_days = 7` if it's set, so the new 30-day default applies.
