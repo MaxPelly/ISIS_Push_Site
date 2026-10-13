@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from push_site import __version__
 from push_site.config import Config
-from push_site.prefs import BASE_TOPICS, parse_prefs
+from push_site.prefs import BASE_TOPICS, KIND_COUNT, parse_prefs
 from push_site.storage import DEVICE_IDLE_LIMIT, Store
 
 logger = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ async def ingest(request: web.Request) -> web.Response:
     except (ValueError, RecursionError) as exc:  # including JSONDecodeError and UnicodeDecodeError
         logger.warning(f"Rejected an ingest payload: {exc}")
         raise web.HTTPBadRequest(text=str(exc))
-    if request.app[STORE].add_notification(notification, config.feed_max_items, config.feed_max_days):
+    if request.app[STORE].add_notification(notification, config.feed_items_per_kind, config.feed_max_days):
         request.app[ON_NOTIFICATION](notification)
     return web.Response(status=204)
 
@@ -318,13 +318,12 @@ async def topics(request: web.Request, device_id: int) -> web.Response:
     return web.json_response(list(BASE_TOPICS) + seen)
 
 
-MAX_FEED = 200
-
-
 @signed_in
 async def feed(request: web.Request, device_id: int) -> web.Response:
+    """The newest notifications, by default all the site keeps."""
+    most = KIND_COUNT * request.app[CONFIG].feed_items_per_kind
     try:
-        limit = min(int(request.query.get("limit", "50")), MAX_FEED)
+        limit = min(int(request.query.get("limit", most)), most)
     except ValueError:
         raise web.HTTPBadRequest(text="limit must be a number")
     return web.json_response(request.app[STORE].feed(limit))

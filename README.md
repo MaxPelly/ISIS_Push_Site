@@ -4,7 +4,7 @@
 
 Mobile push notifications for the ISIS Beam Monitor, as a small installable web app (PWA).
 
-The monitor daemon POSTs each notification to this site as HMAC-signed JSON. The site keeps a short feed of them and sends Web Push messages to each device that wants that notification's topic. People join with an invite link, choose topics (TS1, TS2, Muons, MCR news, the daily summary, individual instruments) and optional quiet hours, and can read recent notifications in the app.
+The monitor daemon POSTs each notification to this site as HMAC-signed JSON. The site keeps a short feed of them and sends Web Push messages to each device that wants that notification's topic. People join with an invite link, choose topics (TS1, TS2, Muons, MCR news, the daily summary, individual instruments) and optional quiet hours, and can read recent notifications in the app. The feed keeps the newest 75 of each kind (beam, MCR news, daily summary and experiment notifications) for up to 30 days, set by `[STORAGE] feed_items_per_kind` and `feed_max_days`.
 
 It is an optional submodule of the monitor. It never imports the monitor's code, and the signed JSON payload (described below) is the only contract between them.
 

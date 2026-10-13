@@ -34,13 +34,14 @@ class Config:
     vapid_subject: str = _ini("SECRETS", "")
 
     db_path: str = _ini("STORAGE", "push_site.db")
-    feed_max_items: int = _ini("STORAGE", 200)
-    feed_max_days: float = _ini("STORAGE", 7.0)
+    # The feed keeps this many of each kind of notification (see prefs.FEED_KINDS).
+    feed_items_per_kind: int = _ini("STORAGE", 75)
+    feed_max_days: float = _ini("STORAGE", 30.0)
 
 
 # A repeated id is only refused while it's still in the feed, so the feed must
-# outlast /ingest's 60s timestamp window: at least 50 items and 864s.
-_BOUNDS = {"port": (1, 65535), "feed_max_items": (50, 10_000), "feed_max_days": (0.01, 365)}
+# outlast /ingest's 60s timestamp window: at least 10 of each kind and 864s.
+_BOUNDS = {"port": (1, 65535), "feed_items_per_kind": (10, 1000), "feed_max_days": (0.01, 365)}
 
 
 def read_secret(path: Path, what: str) -> bytes:

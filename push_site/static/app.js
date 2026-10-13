@@ -204,7 +204,7 @@ function feedItem(n, focused) {
 
 async function loadFeed(scrollToFocus) {
   const focus = hashParam("n");
-  const items = await api("GET", "/api/feed?limit=200");  // all the site keeps by default, so each tab has some history
+  const items = await api("GET", "/api/feed");  // all the site keeps, so each tab has its history
   $("feed").replaceChildren(...items.map((n) => feedItem(n, n.id === focus)));  // the CSS says when it's empty
   if (scrollToFocus && focus) $("tab-all").checked = true;  // so the tapped notification isn't filtered out
   if (scrollToFocus) document.querySelector(".feed .focus")?.scrollIntoView({ block: "center" });

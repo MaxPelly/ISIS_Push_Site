@@ -25,11 +25,22 @@ def test_add_ignores_repeated_ids(store):
 def test_feed_is_newest_first_and_pruned_by_count_and_age(store):
     day = 86400
     for i in range(5):
-        store.add_notification({"id": str(i)}, max_items=3, max_days=7, now=i)
+        store.add_notification({"id": str(i), "topic": "TS1"}, per_kind=3, max_days=7, now=i)
     assert [n["id"] for n in store.feed(10)] == ["4", "3", "2"]
     assert [n["id"] for n in store.feed(2)] == ["4", "3"]
-    store.add_notification({"id": "late"}, max_items=3, max_days=1, now=4 + day + 1)
+    store.add_notification({"id": "late", "topic": "TS1"}, per_kind=3, max_days=1, now=4 + day + 1)
     assert [n["id"] for n in store.feed(10)] == ["late"]
+
+
+def test_feed_keeps_the_newest_of_each_kind(store):
+    """A burst of beam cards doesn't push MCR news, summaries or experiments out."""
+    sent = [("mcr", "MCR"), ("sum", "Summary"), ("pearl", "PEARL"), ("wish", "WISH")]
+    sent += [(f"beam{i}", ("TS1", "TS2", "Muons")[i % 3]) for i in range(10)]
+    sent += [("mcr2", "MCR"), ("mcr3", "MCR")]
+    for i, (id_, topic) in enumerate(sent):
+        store.add_notification({"id": id_, "topic": topic}, per_kind=2, max_days=7, now=i)
+    # TS1, TS2 and Muons share the beam kind; instruments share the experiment kind.
+    assert [n["id"] for n in store.feed(100)] == ["mcr3", "mcr2", "beam9", "beam8", "wish", "pearl", "sum"]
 
 
 def test_invite_redeems_for_its_uses_then_stops(store):

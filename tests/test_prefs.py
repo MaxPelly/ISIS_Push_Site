@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from push_site.app import CONFIG
 from push_site.prefs import DEFAULT_PREFS, parse_prefs, wants
 from tests.helpers import api, payload, signed, signed_in
 
@@ -82,6 +83,19 @@ async def test_topics_and_feed_api(site):
     assert [n["id"] for n in feed] == ["2", "1"]
     assert (await api(site, "GET", "/api/feed?limit=lots", token=token)).status == 400
     assert len(await (await api(site, "GET", "/api/feed?limit=-5", token=token)).json()) == 0
+    everything = await (await api(site, "GET", "/api/feed", token=token)).json()
+    assert [n["id"] for n in everything] == ["2", "1", "0"]
+
+
+async def test_feed_api_returns_every_kind_kept_and_no_more(site, monkeypatch):
+    token = await signed_in(site)
+    monkeypatch.setattr(site.app[CONFIG], "feed_items_per_kind", 2)
+    for i, topic in enumerate(["MCR", "MCR", "MCR", "Summary", "TS1", "TS2", "PEARL", "WISH", "ZOOM"]):
+        await site.post("/ingest", **signed(payload(id=f"{i}", topic=topic)))
+    feed = await (await api(site, "GET", "/api/feed", token=token)).json()
+    assert [n["id"] for n in feed] == ["8", "7", "5", "4", "3", "2", "1"]
+    capped = await (await api(site, "GET", "/api/feed?limit=1000", token=token)).json()
+    assert len(capped) == 7
 
 
 def test_quiet_hours_follow_the_clock_across_dst():

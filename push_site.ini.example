@@ -21,6 +21,7 @@ vapid_subject = mailto:admin@example.org
 [STORAGE]
 # In its own directory, the only one the systemd unit lets the site write to.
 db_path = data/push_site.db
-# How many recent notifications the feed keeps (at least 50), and for how many days.
-# feed_max_items = 200
-# feed_max_days = 7
+# The feed keeps this many recent notifications of each kind (beam, MCR news,
+# daily summaries and experiments; 10 to 1000), none older than feed_max_days.
+# feed_items_per_kind = 75
+# feed_max_days = 30

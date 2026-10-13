@@ -6,6 +6,11 @@ from zoneinfo import ZoneInfo
 # Topics the monitor always sends; instruments add their own names.
 BASE_TOPICS = ("TS1", "TS2", "Muons", "MCR", "Summary")
 DEFAULT_PREFS = {"topics": list(BASE_TOPICS), "quiet": None}
+# The feed keeps the newest notifications of each kind separately, so a burst
+# of beam cards can't push the rest out. Any other topic is an instrument's.
+FEED_KINDS = {"TS1": "beam", "TS2": "beam", "Muons": "beam", "MCR": "mcr", "Summary": "summary"}
+OTHER_KIND = "experiment"
+KIND_COUNT = len({*FEED_KINDS.values(), OTHER_KIND})
 MAX_TOPICS = 200
 URGENT_SEVERITIES = ("warning", "attention")  # still sent in quiet hours set to warnings_only
 

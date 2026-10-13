@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from push_site.prefs import DEFAULT_PREFS
+from push_site.prefs import DEFAULT_PREFS, FEED_KINDS, OTHER_KIND
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS feed (
@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 DEVICE_IDLE_LIMIT = 365 * 86400  # a device unused for this long has to be invited again
 TOPIC_RETENTION = 90 * 86400  # topics not seen for this long drop off the preferences page
 LAST_SEEN_RESOLUTION = 3600  # last_seen is only rewritten when this much older
+# Each feed row's kind, for pruning (see prefs.FEED_KINDS); the names are
+# fixed identifiers, so they can be written into the SQL.
+_KIND = ("CASE json_extract(payload, '$.topic') "
+         + " ".join(f"WHEN '{topic}' THEN '{kind}'" for topic, kind in FEED_KINDS.items())
+         + f" ELSE '{OTHER_KIND}' END")
 
 
 def _hash(token: str) -> str:
@@ -76,10 +81,11 @@ class Store:
     def close(self) -> None:
         self.db.close()
 
-    def add_notification(self, notification: dict, max_items: int, max_days: float,
+    def add_notification(self, notification: dict, per_kind: int, max_days: float,
                          now: Optional[float] = None) -> bool:
-        """Store a notification and prune the feed to its limits. False if
-        one with the same id was already stored (a retry or replay)."""
+        """Store a notification and prune the feed to the newest `per_kind`
+        of each kind, none older than `max_days`. False if one with the same
+        id was already stored (a retry or replay)."""
         now = time.time() if now is None else now
         with self.db:
             inserted = self.db.execute(
@@ -88,9 +94,10 @@ class Store:
             ).rowcount == 1
             # Newest by rowid (insertion order), so a clock step can't reorder it.
             self.db.execute(
-                "DELETE FROM feed WHERE received_at < ? OR rowid NOT IN "
-                "(SELECT rowid FROM feed ORDER BY rowid DESC LIMIT ?)",
-                (now - max_days * 86400, max_items),
+                "DELETE FROM feed WHERE received_at < ? OR rowid IN (SELECT rowid FROM ("
+                f"SELECT rowid, ROW_NUMBER() OVER (PARTITION BY {_KIND} ORDER BY rowid DESC) AS n FROM feed"
+                ") WHERE n > ?)",
+                (now - max_days * 86400, per_kind),
             )
             if inserted and notification.get("topic"):
                 self.db.execute("INSERT OR REPLACE INTO topics (name, last_seen) VALUES (?, ?)",

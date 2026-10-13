@@ -26,15 +26,15 @@ def test_defaults_and_secret(write, tmp_path):
     assert (config.host, config.port) == ("127.0.0.1", 8765)
     assert config.db_path == str(tmp_path / "push_site.db")  # relative to the config file
     assert config.vapid_key_file == str(tmp_path / "vapid.pem")
-    assert (config.feed_max_items, config.feed_max_days) == (200, 7.0)
+    assert (config.feed_items_per_kind, config.feed_max_days) == (75, 30.0)
     assert config.public_origin == "https://push.example.org"
     assert config.ingest_secret == SECRET.encode()
     assert SECRET not in repr(config)
 
 
 def test_values_are_read(write):
-    config = load_config(write("[STORAGE]\nfeed_max_items = 60\nfeed_max_days = 1.5\n", origin="https://X.org:8443/"))
-    assert (config.feed_max_items, config.feed_max_days, config.public_origin) == (60, 1.5, "https://x.org:8443")
+    config = load_config(write("[STORAGE]\nfeed_items_per_kind = 60\nfeed_max_days = 1.5\n", origin="https://X.org:8443/"))
+    assert (config.feed_items_per_kind, config.feed_max_days, config.public_origin) == (60, 1.5, "https://x.org:8443")
 
 
 @pytest.mark.parametrize("kwargs, match", [
@@ -44,14 +44,14 @@ def test_values_are_read(write):
     ({"origin": "https://user:pw@push.example.org"}, "public_origin"),
     ({"origin": "https://[abc"}, "public_origin"),
     ({"origin": "https://push.example.org:99999"}, "public_origin"),
-    ({"body": "[STORAGE]\nfeed_max_items = 10\n"}, "feed_max_items must be between 50"),
+    ({"body": "[STORAGE]\nfeed_items_per_kind = 9\n"}, "feed_items_per_kind must be between 10"),
     ({"secret": ""}, "ingest_secret_file is required"),
     ({"subject": ""}, "vapid_subject"),
     ({"subject": "admin@example.org"}, "vapid_subject"),
     ({"secret": "/nonexistent"}, "could not be read"),
     ({"body": "port = 0\n"}, "port must be between"),
     ({"body": "[STORAGE]\nfeed_max_days = nan\n"}, "feed_max_days must be between"),
-    ({"body": "[STORAGE]\nfeed_max_items = lots\n"}, r"\[STORAGE\] feed_max_items"),
+    ({"body": "[STORAGE]\nfeed_items_per_kind = lots\n"}, r"\[STORAGE\] feed_items_per_kind"),
 ])
 def test_invalid_config(write, kwargs, match):
     body = kwargs.pop("body", "")
