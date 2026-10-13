@@ -6,6 +6,10 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-10-13
+
+Upgrading: in `push_site.ini`, replace any `[STORAGE] feed_max_items` with `feed_items_per_kind`, and remove `feed_max_days = 7` if it's set, so the new 30-day default applies.
+
 - The feed keeps the newest `feed_items_per_kind` (default 75) notifications of each kind (beam, MCR news, daily summary and experiment) instead of the newest 200 overall, so a burst of beam cards no longer pushes the rest out. This replaces `[STORAGE] feed_max_items`, which is now ignored, and `feed_max_days` defaults to 30 instead of 7. The page shows everything kept, so the 1.0.2 entry's "whole stored feed" is now true. The existing feed is pruned to the new rule on the first notification after upgrading.
 - Turning notifications on fetches the site's push key first if the page couldn't load it earlier, instead of subscribing without one.
 - When the browser replaces a push subscription, the service worker registers the browser's new one rather than making another, and fails visibly if the site refuses it.
