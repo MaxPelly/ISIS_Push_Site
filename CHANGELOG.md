@@ -6,6 +6,10 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-13
+
+- The Status section says when the status was last updated ("Updated at 14:32:05", in the device's time) instead of how many seconds ago, which said little between the monitor's once-a-minute updates.
+
 ## [1.1.0] - 2026-10-13
 
 Adds a Status page, fed by monitor 1.4.0 or later (an older monitor sends no status, and the page says so). Upgrading: if your reverse proxy refuses `/ingest` by exact path, make it refuse `/ingest/*` too (the example Caddyfile already does).

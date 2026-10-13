@@ -304,7 +304,13 @@ function instrumentRow(inst, powers) {
     el("span", {}, progress, el("span", { className: "counts", textContent: `${counts}${target}` })));
 }
 
-let statusReceived = null;  // when the status shown came, by the server's clock, as Date.now() - age
+// When the status shown came, on this device's clock (from the age the server gives, so
+// a phone whose clock is off still shows the right time).
+let statusReceived = null;
+
+function clock(when) {
+  return when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
 
 async function loadStatus() {
   const { status, received_at: receivedAt, age: ageSeconds, stale } = await api("GET", "/api/status");
@@ -319,7 +325,7 @@ async function loadStatus() {
   age.classList.toggle("offline", stale);
   const received = new Date(receivedAt * 1000);
   age.textContent = stale ? `Monitor offline since ${received.toLocaleString()}`
-    : `Updated ${Math.round(ageSeconds)} s ago`;
+    : `Updated at ${clock(new Date(statusReceived))}`;
 }
 
 // A failed read leaves the status shown, but says how old it is.
@@ -331,7 +337,7 @@ function statusFailed(e) {
   const age = $("status-age");
   age.classList.add("offline");
   age.textContent = statusReceived === null ? "Couldn't read the status."
-    : `Couldn't update; last updated ${Math.round((Date.now() - statusReceived) / 1000)} s ago.`;
+    : `Couldn't update; last updated at ${clock(new Date(statusReceived))}.`;
 }
 
 // Reads the status now and every STATUS_POLL while the page is visible.
