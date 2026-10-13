@@ -171,6 +171,24 @@ async def test_site_wide_refusals_arent_held_against_devices(store, vapid, caplo
     assert len([r for r in caplog.records if r.levelname == "ERROR"]) == site_fault
 
 
+async def test_a_site_fault_isnt_held_against_a_lone_subscriber(store, vapid):
+    """Once every device is refused alike, a push to just one device refused the
+    same way isn't counted either, until a push succeeds again."""
+    for name in "ab":
+        add_device(store, f"https://fcm.googleapis.com/{name}", topics=["TS1", name])
+    pusher = Pusher(store, vapid, SUBJECT)
+    refused = WebPushException("failed", response=MagicMock(status=403))
+    with patch.object(push, "webpush_async", new=AsyncMock(side_effect=refused)):
+        await pusher.fan_out(MagicMock(), notification(topic="TS1"))
+        for _ in range(push.MAX_REFUSALS):
+            await pusher.fan_out(MagicMock(), notification(topic="a"))
+    assert len(store.push_targets()) == 2 and not pusher._refusals
+    with patch.object(push, "webpush_async", new=AsyncMock(side_effect=[None, refused])):
+        await pusher.fan_out(MagicMock(), notification(topic="b"))  # fixed
+        await pusher.fan_out(MagicMock(), notification(topic="a"))
+    assert pusher._refusals == {"https://fcm.googleapis.com/a": 1}
+
+
 async def test_network_errors_are_logged_and_other_devices_still_get_theirs(store, vapid, caplog):
     for name in "ab":
         add_device(store, f"https://fcm.googleapis.com/{name}")

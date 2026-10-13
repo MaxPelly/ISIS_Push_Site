@@ -30,9 +30,10 @@ MAX_TITLE, MAX_TEXT = 120, 300  # characters; keeps payloads well under Web Push
 # can recover.
 MAX_REFUSALS = 20
 # When (nearly) every device is refused with the same one of these, the fault
-# is the site's, such as a bad VAPID key or clock, and isn't held against the
-# devices. With a single device the two can't be told apart, so a one-device
-# site still drops it after MAX_REFUSALS.
+# is the site's, such as a bad VAPID key or clock, and that refusal isn't held
+# against any device (even in a push to only one) until a push succeeds again.
+# A site with one device can't tell the two apart, so still drops it after
+# MAX_REFUSALS.
 SITE_FAULT_STATUSES = (400, 401, 403)
 
 
@@ -95,6 +96,7 @@ class Pusher:
         self.subject = subject
         self._queue: asyncio.Queue = asyncio.Queue(QUEUE_SIZE)
         self._refusals: dict = {}  # endpoint -> consecutive refusals
+        self._site_fault: Optional[int] = None  # the status of an ongoing site fault
 
     def enqueue(self, notification: dict) -> None:
         if self._queue.full():
@@ -124,14 +126,15 @@ class Pusher:
         results = await asyncio.gather(
             *(self._send(session, semaphore, t, data, urgency) for t in targets), return_exceptions=True
         )
-        site_fault = _site_fault([r for r in results if isinstance(r, int)], len(targets))
-        if site_fault:
-            logger.error(f"Pushes to {len(targets)} devices refused with HTTP {site_fault}; "
-                         "check the VAPID key and the server's clock")
+        refusals = [r for r in results if isinstance(r, int)]
+        if site_fault := _site_fault(refusals, len(targets)):
+            self._site_fault = site_fault
+            logger.error(f"Pushes to {refusals.count(site_fault)} of {len(targets)} devices refused with "
+                         f"HTTP {site_fault}; check the VAPID key and the server's clock")
         for target, result in zip(targets, results):
             if isinstance(result, Exception):
                 logger.error(f"Push to device {target['device_id']} failed unexpectedly: {result!r}")
-            elif isinstance(result, int) and result != site_fault:
+            elif isinstance(result, int) and result != self._site_fault:
                 self._refused(target, result)
 
     @staticmethod
@@ -157,6 +160,7 @@ class Pusher:
                     timeout=SEND_TIMEOUT,
                 )
                 self._refusals.pop(target["endpoint"], None)
+                self._site_fault = None
             except WebPushException as exc:
                 if exc.response is not None:
                     return exc.response.status
