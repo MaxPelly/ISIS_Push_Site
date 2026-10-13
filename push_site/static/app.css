@@ -29,7 +29,7 @@ button.link { background: none; color: #1f6feb; padding: 0; text-decoration: und
 .feed dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.1rem 0.8rem; margin: 0.3rem 0; font-size: 0.9rem; }
 .feed dt { color: #57606a; }
 .feed dd { margin: 0; overflow-wrap: anywhere; }
-.feed:empty::after { content: "Nothing yet."; color: #57606a; }
+.feed.loaded:empty::after { content: "Nothing yet."; color: #57606a; }
 /* Feed tabs, in CSS alone: each item's data-tab is its topic, or "runs" for an instrument's.
    A tab with none of its items says so, once the feed has loaded. */
 .tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.7rem; }
