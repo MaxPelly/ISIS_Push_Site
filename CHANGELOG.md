@@ -6,6 +6,11 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- Status: while an instrument's IOC is down, its progress bar is indeterminate rather than empty and its run state reads "unknown"; while the monitor is offline (or the status can't be read), the beams, instruments and news are greyed out, not just the footer.
+- Ingest accepts and ignores `flavour`, which the monitor no longer sends, rather than keeping it.
+- A status rejected again for the same reason is logged at debug after the first warning.
+- Correction to 1.1.0's notes: the monitor's status publisher shipped in monitor 1.3.0rc2, not 1.4.0.
+
 ## [1.1.2] - 2026-10-13
 
 - The page asks for its script and styles under a new URL each release (`app.js?v=1.1.2`), so a phone gets them straight away even where a cache in front of the site, such as Cloudflare's Browser Cache TTL, overrides their `no-cache` and keeps the last release's for hours.
