@@ -6,6 +6,11 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-10-14
+
+For monitor 1.3.0rc3. No config change.
+
+- Tags ending in `aN`, `bN` or `rcN` are published as GitHub pre-releases, so they don't become "Latest".
 - Status: while an instrument's IOC is down, its progress bar is indeterminate rather than empty and its run state reads "unknown"; while the monitor is offline (or the status can't be read), the beams, instruments and news are greyed out, not just the footer.
 - Ingest accepts and ignores `flavour`, which the monitor no longer sends, rather than keeping it.
 - A status rejected again for the same reason is logged at debug after the first warning.
