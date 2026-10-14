@@ -25,8 +25,9 @@ public_origin = https://push.example.org
 vapid_subject = mailto:admin@example.org
 
 [STORAGE]
-# In its own directory, the only one the systemd unit lets the site write to.
-db_path = data/push_site.db
+# Under the systemd unit, in its state directory, the one it may write to (with
+# the VAPID key): /var/lib/isis-push-site/push_site.db, as in the README.
+# db_path = push_site.db
 # The feed keeps this many recent notifications of each kind (beam, MCR news,
 # daily summaries and experiments; 10 to 1000), none older than feed_max_days.
 # feed_items_per_kind = 75

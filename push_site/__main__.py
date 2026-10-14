@@ -39,7 +39,11 @@ def build_app(config, store: Store) -> web.Application:
 def ingest_socket(path: Path) -> socket.socket:
     """The ingest socket, readable and writable by the site's group, which
     the monitor's user belongs to; the systemd unit sets that group."""
-    if path.exists() and not stat.S_ISSOCK(path.stat().st_mode):
+    try:
+        mode = path.lstat().st_mode  # (a symlink isn't followed, nor replaced)
+    except FileNotFoundError:
+        mode = None
+    if mode is not None and not stat.S_ISSOCK(mode):
         raise ConfigError(f"[SERVER] ingest_socket {path} is a file, not a socket; it won't be replaced")
     path.unlink(missing_ok=True)  # left by a crash
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

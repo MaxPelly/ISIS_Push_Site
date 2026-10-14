@@ -130,6 +130,9 @@ def test_the_ingest_socket_replaces_only_an_old_socket(tmp_path):
     (tmp_path / "push_site.db").write_text("data")
     with pytest.raises(ConfigError, match="is a file, not a socket; it won't be replaced"):
         ingest_socket(tmp_path / "push_site.db")
+    (tmp_path / "link.sock").symlink_to(tmp_path / "push_site.db")
+    with pytest.raises(ConfigError, match="is a file, not a socket"):
+        ingest_socket(tmp_path / "link.sock")
     assert (tmp_path / "push_site.db").read_text() == "data"
     with pytest.raises(ConfigError, match="ingest_socket .* can't be created"):
         ingest_socket(tmp_path / "missing" / "ingest.sock")
