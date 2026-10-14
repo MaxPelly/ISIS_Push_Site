@@ -9,58 +9,63 @@ from tests.helpers import payload, signed
 
 
 async def test_signed_notification_is_stored_and_passed_on_once(site):
-    resp = await site.post("/ingest", **signed(payload()))
+    resp = await site.post("/ingest", **signed(payload(extra="ignored", url="https://example.org/mcr")))
     assert resp.status == 204
-    assert site.store.feed(10)[0]["title"] == "TS1 ⬇️ high → off"
+    stored = site.store.feed(10)[0]
+    assert stored["title"] == "TS1 ⬇️ high → off" and stored["url"] == "https://example.org/mcr"
+    assert "extra" not in stored and "v" not in stored  # unknown fields are dropped
     assert [n["id"] for n in site.received] == ["0f0e-1"]
     # A retry or replay of the same id is accepted but not passed on again.
     assert (await site.post("/ingest", **signed(payload()))).status == 204
     assert len(site.received) == 1
 
 
-@pytest.mark.parametrize("kwargs", [
-    {"secret": b"x" * 32},
-    {"timestamp": int(time.time()) - 120},
-    {"timestamp": int(time.time()) + 120},
-    {"timestamp": "soon"},
-    {"timestamp": "9" * 400},
-    {"timestamp": "+" + str(int(time.time()))},
+def _tampered(body: bytes = None, **headers) -> dict:
+    """A signed request, then changed."""
+    request = signed(payload())
+    request["data"] = body or request["data"]
+    request["headers"].update(headers)
+    return request
+
+
+@pytest.mark.parametrize("request_kwargs", [
+    pytest.param(lambda: {"json": payload()}, id="unsigned"),
+    pytest.param(lambda: _tampered(signed(payload())["data"].replace(b"TS1", b"TS2")), id="tampered-body"),
+    pytest.param(lambda: _tampered(**{"X-Signature": "é" * 64}), id="non-ascii-signature"),
+    pytest.param(lambda: signed(payload(), secret=b"x" * 32), id="wrong-secret"),
+    pytest.param(lambda: signed(payload(), timestamp=int(time.time()) - 120), id="stale"),
+    pytest.param(lambda: signed(payload(), timestamp=int(time.time()) + 120), id="future"),
+    pytest.param(lambda: signed(payload(), timestamp="soon"), id="non-numeric-timestamp"),
+    pytest.param(lambda: signed(payload(), timestamp="9" * 400), id="huge-timestamp"),
+    pytest.param(lambda: signed(payload(), timestamp="+" + str(int(time.time()))), id="signed-timestamp"),
 ])
-async def test_bad_or_stale_signature_is_rejected(site, kwargs):
-    resp = await site.post("/ingest", **signed(payload(), **kwargs))
+async def test_bad_or_stale_signature_is_rejected(site, request_kwargs):
+    resp = await site.post("/ingest", **request_kwargs())
     assert resp.status == 401
     assert site.store.feed(10) == [] and site.received == []
 
 
-async def test_unsigned_or_tampered_requests_are_rejected(site):
-    assert (await site.post("/ingest", json=payload())).status == 401
-    request = signed(payload())
-    request["data"] = request["data"].replace(b"TS1", b"TS2")
-    assert (await site.post("/ingest", **request)).status == 401
-    request = signed(payload())
-    request["headers"]["X-Signature"] = "é" * 64
-    assert (await site.post("/ingest", **request)).status == 401
-
-
-@pytest.mark.parametrize("header", ["X-Forwarded-For", "Forwarded", "CF-Connecting-IP"])
-async def test_forwarded_requests_are_refused(site, header):
-    request = signed(payload())
-    request["headers"][header] = "for=203.0.113.9"
-    assert (await site.post("/ingest", **request)).status == 404
-
-
-@pytest.mark.parametrize("remote", ["172.18.0.5", "203.0.113.9", "::ffff:192.0.2.6", None])
-async def test_requests_from_other_hosts_are_refused(site, monkeypatch, remote):
-    """E.g. from a container on a Docker network, when the site listens on 0.0.0.0."""
+@pytest.mark.parametrize("remote, header, status", [
+    # E.g. from a container on a Docker network, when the site listens on 0.0.0.0.
+    ("172.18.0.5", None, 404),
+    ("203.0.113.9", None, 404),
+    ("::ffff:192.0.2.6", None, 404),
+    (None, None, 404),
+    # Through a proxy, even one on this host.
+    ("127.0.0.1", "X-Forwarded-For", 404),
+    ("127.0.0.1", "Forwarded", 404),
+    ("127.0.0.1", "CF-Connecting-IP", 404),
+    ("127.0.0.1", None, 204),
+    ("::1", None, 204),
+    ("::ffff:127.0.0.1", None, 204),
+])
+async def test_only_direct_requests_from_loopback_are_taken(site, monkeypatch, remote, header, status):
     monkeypatch.setattr(web.Request, "remote", property(lambda self: remote))
-    assert (await site.post("/ingest", **signed(payload()))).status == 404
-    assert site.received == []
-
-
-@pytest.mark.parametrize("remote", ["127.0.0.1", "::1", "::ffff:127.0.0.1"])
-async def test_requests_from_loopback_are_taken(site, monkeypatch, remote):
-    monkeypatch.setattr(web.Request, "remote", property(lambda self: remote))
-    assert (await site.post("/ingest", **signed(payload()))).status == 204
+    request = signed(payload())
+    if header:
+        request["headers"][header] = "for=203.0.113.9"
+    assert (await site.post("/ingest", **request)).status == status
+    assert len(site.received) == (status == 204)
 
 
 async def test_oversized_body_is_refused(site):
@@ -90,13 +95,6 @@ async def test_oversized_body_is_refused(site):
 async def test_malformed_payloads_are_rejected(site, data):
     assert (await site.post("/ingest", **signed(data))).status == 400
     assert site.store.feed(10) == []
-
-
-async def test_unknown_fields_are_dropped(site):
-    await site.post("/ingest", **signed(payload(extra="ignored", url="https://example.org/mcr")))
-    stored = site.store.feed(1)[0]
-    assert "extra" not in stored and "v" not in stored
-    assert stored["url"] == "https://example.org/mcr"
 
 
 async def test_a_locked_database_is_busy_not_an_error(site, caplog):
