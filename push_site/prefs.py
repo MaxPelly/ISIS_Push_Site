@@ -1,5 +1,6 @@
 """Per-device notification preferences: topics and quiet hours."""
-from datetime import datetime, time as dtime
+from datetime import datetime
+from datetime import time as dtime
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -51,7 +52,7 @@ def parse_prefs(data: object) -> dict:
         try:
             ZoneInfo(quiet.get("timezone"))
         except (TypeError, ValueError, KeyError, OSError):  # ZoneInfoNotFoundError is a KeyError
-            raise ValueError("unknown timezone")
+            raise ValueError("unknown timezone") from None
         quiet = {key: quiet[key] for key in ("start", "end", "timezone", "warnings_only")}
     return {"topics": sorted(set(topics)), "quiet": quiet}
 

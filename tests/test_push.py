@@ -13,9 +13,9 @@ from py_vapid import Vapid02
 from pywebpush import WebPushException
 
 from push_site import push
+from push_site.config import ConfigError
 from push_site.push import Pusher, push_payload
 from push_site.storage import DEVICE_IDLE_LIMIT, Store
-from push_site.config import ConfigError
 from tests.helpers import b64, payload
 
 SUBJECT = "mailto:admin@example.org"

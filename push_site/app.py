@@ -165,7 +165,7 @@ async def ingest(request: web.Request) -> web.Response:
         notification = parse_notification(json.loads(body))
     except (ValueError, RecursionError) as exc:  # including JSONDecodeError and UnicodeDecodeError
         logger.warning(f"Rejected an ingest payload: {exc}")
-        raise web.HTTPBadRequest(text=str(exc))
+        raise web.HTTPBadRequest(text=str(exc)) from None
     if request.app[STORE].add_notification(notification, config.feed_items_per_kind, config.feed_max_days):
         request.app[ON_NOTIFICATION](notification)
     return web.Response(status=204)
@@ -184,7 +184,7 @@ async def ingest_status(request: web.Request) -> web.Response:
         log = logger.debug if rejected.get("reason") == str(exc) else logger.warning
         rejected["reason"] = str(exc)
         log(f"Rejected a status payload: {exc}")
-        raise web.HTTPBadRequest(text=str(exc))
+        raise web.HTTPBadRequest(text=str(exc)) from None
     request.app[STATUS_REJECTED].clear()
     if not request.app[STORE].set_status(status):
         logger.debug("Ignored a status no newer than the one kept")
@@ -239,7 +239,7 @@ async def _read_body(request: web.Request) -> bytes:
     try:
         return await request.read()
     except RequestPayloadError:  # e.g. a body that doesn't match its Content-Encoding
-        raise web.HTTPBadRequest()
+        raise web.HTTPBadRequest() from None
 
 
 async def _json_object(request: web.Request) -> dict:
@@ -351,7 +351,7 @@ async def put_prefs(request: web.Request, device_id: int) -> web.Response:
     try:
         prefs = parse_prefs(await _json_object(request))
     except ValueError as exc:
-        raise web.HTTPBadRequest(text=str(exc))
+        raise web.HTTPBadRequest(text=str(exc)) from None
     request.app[STORE].set_prefs(device_id, prefs)
     return web.Response(status=204)
 
@@ -374,7 +374,7 @@ async def feed(request: web.Request, device_id: int) -> web.Response:
     try:
         limit = min(int(request.query.get("limit", most)), most)
     except ValueError:
-        raise web.HTTPBadRequest(text="limit must be a number")
+        raise web.HTTPBadRequest(text="limit must be a number") from None
     return web.json_response(request.app[STORE].feed(limit))
 
 

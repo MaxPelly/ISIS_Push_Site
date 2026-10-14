@@ -5,7 +5,6 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from push_site.app import keys_ok, push_endpoint_ok
 from tests.helpers import api, b64, signed_in
 
-
 POINT = ec.generate_private_key(ec.SECP256R1()).public_key().public_bytes(
     serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
 P256DH, AUTH = b64(POINT), b64(bytes(16))

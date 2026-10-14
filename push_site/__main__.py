@@ -117,7 +117,7 @@ def main(argv=None) -> None:
         finally:
             store.close()
     except ConfigError as exc:
-        raise SystemExit(f"Configuration error: {exc}")
+        raise SystemExit(f"Configuration error: {exc}") from None
 
 
 if __name__ == "__main__":

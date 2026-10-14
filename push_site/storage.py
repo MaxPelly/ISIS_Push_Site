@@ -9,8 +9,8 @@ import os
 import secrets
 import sqlite3
 import time
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from push_site.prefs import DEFAULT_PREFS, FEED_KINDS, OTHER_KIND

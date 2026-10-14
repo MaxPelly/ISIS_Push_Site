@@ -2,3 +2,4 @@
 pytest
 pytest-aiohttp
 pytest-cov
+ruff

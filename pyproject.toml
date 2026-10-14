@@ -17,6 +17,7 @@ dev = [
     "pytest",
     "pytest-aiohttp",
     "pytest-cov",
+    "ruff",
 ]
 
 [tool.setuptools]
@@ -30,3 +31,6 @@ push_site = ["static/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.ruff.lint]
+select = ["E9", "F", "I", "B"]

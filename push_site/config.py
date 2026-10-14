@@ -88,7 +88,7 @@ def load_config(path: Path) -> Config:
             raise ConfigError(f"{name} must be between {low} and {high}")
     try:
         origin = urlsplit(config.public_origin)
-        origin.port  # raises ValueError if out of range
+        _ = origin.port  # raises ValueError if out of range
     except ValueError:
         origin = None
     if (not origin or origin.scheme != "https" or not origin.hostname or "@" in origin.netloc

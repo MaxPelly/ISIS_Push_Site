@@ -45,7 +45,7 @@ def generate_vapid_key(path: Path) -> Vapid02:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
         raise ConfigError(f"{path} already exists; delete it first to replace the key "
-                          "(every device will then have to subscribe again)")
+                          "(every device will then have to subscribe again)") from None
     with os.fdopen(fd, "wb") as f:
         f.write(vapid.private_pem())
     return vapid
@@ -55,9 +55,9 @@ def load_vapid_key(path: Path) -> Vapid02:
     try:
         return Vapid02.from_pem(path.read_bytes())
     except OSError as exc:
-        raise ConfigError(f"Could not read the VAPID key ({exc}); create one with `python -m push_site vapid`")
+        raise ConfigError(f"Could not read the VAPID key ({exc}); create one with `python -m push_site vapid`") from None
     except Exception as exc:  # whatever cryptography raises for a malformed PEM
-        raise ConfigError(f"{path} is not a valid VAPID key: {exc}")
+        raise ConfigError(f"{path} is not a valid VAPID key: {exc}") from None
 
 
 def public_key(vapid: Vapid02) -> str:
@@ -104,7 +104,7 @@ class Pusher:
         try:  # py_vapid checks the subject when signing; fail at startup, not on every push
             vapid.sign({"sub": subject, "aud": "https://push.example"})
         except Exception as exc:
-            raise ConfigError(f"[SECRETS] vapid_subject {subject!r} isn't accepted for VAPID: {exc}")
+            raise ConfigError(f"[SECRETS] vapid_subject {subject!r} isn't accepted for VAPID: {exc}") from None
         self.store = store
         self.vapid = vapid
         self.subject = subject
@@ -145,7 +145,7 @@ class Pusher:
             self._site_fault = site_fault
             logger.error(f"Pushes to {refusals.count(site_fault)} of {len(targets)} devices refused with "
                          f"HTTP {site_fault}; check the VAPID key and the server's clock")
-        for target, result in zip(targets, results):
+        for target, result in zip(targets, results, strict=True):
             if isinstance(result, Exception):
                 logger.error(f"Push to device {target['device_id']} failed unexpectedly: {result!r}")
             elif isinstance(result, int) and result != self._site_fault:
