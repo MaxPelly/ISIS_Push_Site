@@ -8,6 +8,7 @@ import ipaddress
 import json
 import logging
 import re
+import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
@@ -189,6 +190,17 @@ async def ingest_status(request: web.Request) -> web.Response:
         logger.debug("Ignored a status no newer than the one kept")
         raise web.HTTPConflict()
     return web.Response(status=204)
+
+
+@web.middleware
+async def database_busy(request: web.Request, handler):
+    """503 rather than 500 while the database is locked for longer than its
+    busy timeout, e.g. by an admin command: the monitor retries a notification."""
+    try:
+        return await handler(request)
+    except sqlite3.OperationalError as exc:
+        logger.warning(f"Database busy on {request.method} {request.path}: {exc}")
+        raise web.HTTPServiceUnavailable(text="busy, try again") from None
 
 
 @web.middleware
@@ -402,7 +414,7 @@ async def _index(request: web.Request) -> web.Response:
 
 def create_app(config: Config, store: Store, on_notification: Callable[[dict], None],
                vapid_public_key: str) -> web.Application:
-    app = web.Application(client_max_size=MAX_BODY, middlewares=[same_origin_guard])
+    app = web.Application(client_max_size=MAX_BODY, middlewares=[database_busy, same_origin_guard])
     app[CONFIG] = config
     app[STORE] = store
     app[ON_NOTIFICATION] = on_notification

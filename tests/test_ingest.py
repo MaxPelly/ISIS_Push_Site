@@ -1,4 +1,6 @@
+import sqlite3
 import time
+from unittest.mock import patch
 
 import pytest
 from aiohttp import web
@@ -95,3 +97,12 @@ async def test_unknown_fields_are_dropped(site):
     stored = site.store.feed(1)[0]
     assert "extra" not in stored and "v" not in stored
     assert stored["url"] == "https://example.org/mcr"
+
+
+async def test_a_locked_database_is_busy_not_an_error(site, caplog):
+    """E.g. an admin command holding the write lock past the busy timeout: the monitor retries a 503."""
+    with patch.object(site.store, "add_notification", side_effect=sqlite3.OperationalError("database is locked")):
+        resp = await site.post("/ingest", **signed(payload()))
+    assert (resp.status, await resp.text()) == (503, "busy, try again")
+    assert "Database busy on POST /ingest: database is locked" in caplog.text
+    assert (await site.post("/ingest", **signed(payload()))).status == 204  # and fine once it's free
