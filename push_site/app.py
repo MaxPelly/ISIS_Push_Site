@@ -69,6 +69,8 @@ STORE = web.AppKey("store", Store)
 # Called with each newly stored notification (fan-out to push subscribers);
 # it must not block or raise, since the notification is already stored.
 ON_NOTIFICATION = web.AppKey("on_notification", Callable[[dict], None])
+# The last status rejection warned of, so a monitor resending the same bad status every minute warns once.
+STATUS_REJECTED = web.AppKey("status_rejected", dict)
 
 
 def parse_notification(data: object) -> dict:
@@ -177,8 +179,12 @@ async def ingest_status(request: web.Request) -> web.Response:
             # Kept, it would hold back every status until the monitor's clock caught up with it.
             raise ValueError("generated_at is in the future")
     except (ValueError, RecursionError) as exc:
-        logger.warning(f"Rejected a status payload: {exc}")
+        rejected = request.app[STATUS_REJECTED]
+        log = logger.debug if rejected.get("reason") == str(exc) else logger.warning
+        rejected["reason"] = str(exc)
+        log(f"Rejected a status payload: {exc}")
         raise web.HTTPBadRequest(text=str(exc))
+    request.app[STATUS_REJECTED].clear()
     if not request.app[STORE].set_status(status):
         logger.debug("Ignored a status no newer than the one kept")
         raise web.HTTPConflict()
@@ -402,6 +408,7 @@ def create_app(config: Config, store: Store, on_notification: Callable[[dict], N
     app[ON_NOTIFICATION] = on_notification
     app[VAPID_PUBLIC_KEY] = vapid_public_key
     app[INDEX] = (STATIC / "index.html").read_text()
+    app[STATUS_REJECTED] = {}
     app.on_response_prepare.append(_add_security_headers)
     app.router.add_post("/ingest", ingest)
     app.router.add_post("/ingest/status", ingest_status)

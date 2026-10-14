@@ -106,6 +106,14 @@ async def test_a_status_from_the_future_is_refused(site):
     assert resp.status == 400 and site.store.status() is None
 
 
+async def test_a_repeated_rejection_is_warned_of_once(site, caplog):
+    for _ in range(2):
+        await site.post("/ingest/status", **signed(status(v=2)))
+    await site.post("/ingest/status", **signed(status()))
+    await site.post("/ingest/status", **signed(status(v=2)))
+    assert caplog.text.count("WARNING") == 2  # and again after a good one
+
+
 async def test_the_status_age_is_by_the_sites_clock(site):
     token = await signed_in(site)
     await site.post("/ingest/status", **signed(status()))
