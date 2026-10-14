@@ -17,7 +17,7 @@ dev = [
     "pytest",
     "pytest-aiohttp",
     "pytest-cov",
-    "ruff",
+    "ruff>=0.17,<0.18",
 ]
 
 [tool.setuptools]

@@ -195,12 +195,15 @@ async def ingest_status(request: web.Request) -> web.Response:
 @web.middleware
 async def database_busy(request: web.Request, handler):
     """503 rather than 500 while the database is locked for longer than its
-    busy timeout, e.g. by an admin command: the monitor retries a notification."""
+    busy timeout, e.g. by an admin command. Any other database error (a
+    read-only or full disk, say) stays a 500 with its traceback."""
     try:
         return await handler(request)
     except sqlite3.OperationalError as exc:
+        if exc.sqlite_errorcode & 0xFF not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            raise
         logger.warning(f"Database busy on {request.method} {request.path}: {exc}")
-        raise web.HTTPServiceUnavailable(text="busy, try again") from None
+        raise web.HTTPServiceUnavailable(text="busy, try again", headers={"Retry-After": "2"}) from None
 
 
 @web.middleware

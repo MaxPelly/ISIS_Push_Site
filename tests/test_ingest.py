@@ -97,10 +97,19 @@ async def test_malformed_payloads_are_rejected(site, data):
     assert site.store.feed(10) == []
 
 
+def _db_error(message, code):
+    exc = sqlite3.OperationalError(message)
+    exc.sqlite_errorcode = code  # as SQLite sets it
+    return exc
+
+
 async def test_a_locked_database_is_busy_not_an_error(site, caplog):
     """E.g. an admin command holding the write lock past the busy timeout: the monitor retries a 503."""
-    with patch.object(site.store, "add_notification", side_effect=sqlite3.OperationalError("database is locked")):
+    with patch.object(site.store, "add_notification", side_effect=_db_error("database is locked", sqlite3.SQLITE_BUSY)):
         resp = await site.post("/ingest", **signed(payload()))
-    assert (resp.status, await resp.text()) == (503, "busy, try again")
+    assert (resp.status, await resp.text(), resp.headers["Retry-After"]) == (503, "busy, try again", "2")
     assert "Database busy on POST /ingest: database is locked" in caplog.text
     assert (await site.post("/ingest", **signed(payload()))).status == 204  # and fine once it's free
+    readonly = _db_error("attempt to write a readonly database", sqlite3.SQLITE_READONLY)
+    with patch.object(site.store, "add_notification", side_effect=readonly):
+        assert (await site.post("/ingest", **signed(payload(id="2")))).status == 500  # a fault, not busy

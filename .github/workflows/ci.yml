@@ -30,7 +30,7 @@ jobs:
     - name: Lint
       run: ruff check .
     - name: Test
-      # The gate sits a little under the measured coverage (99%), so it catches
+      # The gate sits a little under the measured coverage (98%), so it catches
       # a real drop without failing on a small one.
       run: pytest --cov=push_site --cov-branch --cov-report=term-missing --cov-fail-under=97
 
@@ -45,8 +45,11 @@ jobs:
       run: |
         sh -n deploy/isis-push
         sudo visudo -cf deploy/isis-push.sudoers
-    - name: Check the systemd unit (best effort; its paths don't exist here)
-      continue-on-error: true
+    - name: Check the systemd unit
       run: |
-        sed -e "/^#/!s|/path/to/ISIS_Beam_Monitor|$PWD|g" deploy/isis-push-site.service > "$RUNNER_TEMP/isis-push-site.service"
+        # A stand-in checkout with the interpreter where the unit expects it
+        monitor="$RUNNER_TEMP/monitor"
+        mkdir -p "$monitor/push_site/.venv/bin" "$monitor/push_site/data"
+        ln -s "$(command -v python3)" "$monitor/push_site/.venv/bin/python"
+        sed -e "/^#/!s|/path/to/ISIS_Beam_Monitor|$monitor|g" deploy/isis-push-site.service > "$RUNNER_TEMP/isis-push-site.service"
         systemd-analyze verify "$RUNNER_TEMP/isis-push-site.service"

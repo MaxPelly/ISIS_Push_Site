@@ -6,6 +6,7 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- A request that finds the database locked for longer than its 1s busy timeout (e.g. by an `isis-push` admin command) gets HTTP 503 with `Retry-After: 2`, rather than a 500 with a traceback, and the site logs one warning line. Any other database error is still a 500.
 - A request that finds the database locked for longer than its 1s busy timeout (e.g. by an `isis-push` admin command) gets HTTP 503, which the monitor retries, rather than 500, and the site logs a warning.
 ## [1.1.4] - 2026-10-15
 

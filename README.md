@@ -28,7 +28,7 @@ phones ──HTTPS──► Caddy (TLS, refuses /ingest) ───────�
   - Only SHA-256 hashes of tokens are stored, and devices can be listed and revoked from the command line.
   - The invite token sits in the link's `#fragment`, so it never reaches server or proxy logs.
 - **API:**
-  - Every change (any `/api/` request but `GET`) must be JSON with an `Origin` header equal to `public_origin`.
+  - Every change (any `/api/` request but `GET` or `HEAD`) must be JSON with an `Origin` header equal to `public_origin`.
   - Push subscriptions are only accepted for the browsers' push services (FCM, Apple, Mozilla, Windows), with keys that are checked to be valid. This means the site can't be used to send requests to arbitrary servers.
 - **Pages:**
   - The pages have a strict Content Security Policy (no inline script or style) and set all text with `textContent`.
@@ -151,7 +151,7 @@ Send the link it prints. The person receiving it then does one of the following:
 
 ## The Status section
 
-The top of the app shows the monitor's latest status, from `/ingest/status` (below), to signed-in devices only. It's read every 30 seconds while the page is open.
+The top of the app shows the monitor's latest status, from `/ingest/status` (below), to signed-in devices only. It's read every 30 seconds while the page is visible.
 
 - **Beams:** each one's power, current and since when, with its last 24h as a line coloured by power.
 - **Instruments:** each one's run number and state, title, and counts against its target as a progress bar (`≈` marks a target the monitor estimated).
