@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import logging
 import os
+import socket
 from datetime import datetime
 from pathlib import Path
 
@@ -34,10 +35,22 @@ def build_app(config, store: Store) -> web.Application:
     return app
 
 
+def ingest_socket(path: Path) -> socket.socket:
+    """The ingest socket, readable and writable by the site's group, which
+    the monitor's user belongs to; the systemd unit sets that group."""
+    path.unlink(missing_ok=True)  # left by a crash
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(str(path))
+    os.chmod(path, 0o660)  # before listening, so nothing connects before it's set
+    return sock
+
+
 def serve(config, store: Store) -> None:
     logging.getLogger(__name__).info("ISIS Push Site v%s", __version__)
+    # The public listener for the reverse proxy, and the monitor's ingest socket.
     # No access log: the reverse proxy keeps one.
-    web.run_app(build_app(config, store), host=config.host, port=config.port, access_log=None, print=None)
+    web.run_app(build_app(config, store), host=config.host, port=config.port,
+                sock=ingest_socket(Path(config.ingest_socket)), access_log=None, print=None)
 
 
 def invite(config, store: Store, args) -> None:

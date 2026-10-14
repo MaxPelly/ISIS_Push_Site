@@ -87,9 +87,6 @@ async def test_a_status_not_refreshed_for_three_intervals_is_stale(site):
 async def test_status_needs_signing_in_and_a_signature(site):
     assert (await api(site, "GET", "/api/status")).status == 401
     assert (await site.post("/ingest/status", **signed(status(), secret=b"x" * 32))).status == 401
-    forwarded = signed(status())
-    forwarded["headers"]["X-Forwarded-For"] = "1.2.3.4"
-    assert (await site.post("/ingest/status", **forwarded)).status == 404
     assert (await site.post("/ingest/status", **signed(status(v=2)))).status == 400
     assert site.store.status() is None
 

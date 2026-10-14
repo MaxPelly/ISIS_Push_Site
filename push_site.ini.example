@@ -1,10 +1,15 @@
 # Copy to push_site.ini and edit. Relative paths are relative to this file.
 
 [SERVER]
-# Bind to localhost only; a reverse proxy (e.g. Caddy) terminates HTTPS in front.
-# Use 0.0.0.0 if the proxy runs in a container (/ingest still only answers loopback).
+# The public listener, for a reverse proxy (e.g. Caddy) that terminates HTTPS in
+# front. Bind to localhost, or if the proxy runs in a container, to the address
+# the container reaches the host on (e.g. the Docker bridge's gateway).
 # host = 127.0.0.1
 # port = 8765
+# The monitor's ingest socket: /ingest and /ingest/status are only answered here.
+# The site makes it read-writable by its group (in the README's setup, isis-ingest,
+# which the monitor's user is in).
+# ingest_socket = ingest.sock
 # The public HTTPS origin phones load the site from (required).
 public_origin = https://push.example.org
 

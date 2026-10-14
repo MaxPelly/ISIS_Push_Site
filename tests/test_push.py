@@ -250,8 +250,10 @@ async def test_real_push_is_encrypted_for_the_browser(store, vapid, aiohttp_serv
     assert json.loads(plain)["title"] == "🔴 TS1 ⬇️ high → off"
 
 
-async def test_ingested_notifications_are_pushed(tmp_path, aiohttp_client, vapid):
+async def test_ingested_notifications_are_pushed(tmp_path, aiohttp_client, vapid, monkeypatch):
+    from push_site import app as app_module
     from push_site.__main__ import build_app
+    monkeypatch.setattr(app_module, "over_ingest_socket", lambda request: True)  # the test client talks TCP
     from tests.helpers import make_config, signed
     (tmp_path / "vapid.pem").write_bytes(vapid.private_pem())
     config = make_config(tmp_path)

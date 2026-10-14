@@ -2,6 +2,7 @@ import shutil
 
 import pytest
 
+from push_site import app as app_module
 from push_site.app import create_app
 from push_site.storage import Store
 from tests.helpers import make_config
@@ -28,8 +29,10 @@ def store(tmp_path, empty_db):
 
 
 @pytest.fixture
-async def site(tmp_path, empty_db, aiohttp_client):
-    """A test client for the app; `received` collects what's passed on for fan-out."""
+async def site(tmp_path, empty_db, aiohttp_client, monkeypatch):
+    """A test client for the app; `received` collects what's passed on for fan-out.
+    It talks TCP, so its requests count as coming over the ingest socket."""
+    monkeypatch.setattr(app_module, "over_ingest_socket", lambda request: True)
     store = new_store(tmp_path, empty_db)
     received = []
 

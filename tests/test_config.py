@@ -26,6 +26,7 @@ def test_defaults_and_secret(write, tmp_path):
     assert (config.host, config.port) == ("127.0.0.1", 8765)
     assert config.db_path == str(tmp_path / "push_site.db")  # relative to the config file
     assert config.vapid_key_file == str(tmp_path / "vapid.pem")
+    assert config.ingest_socket == str(tmp_path / "ingest.sock")
     assert (config.feed_items_per_kind, config.feed_max_days) == (75, 30.0)
     assert config.public_origin == "https://push.example.org"
     config.ingest_secret = read_ingest_secret(config)

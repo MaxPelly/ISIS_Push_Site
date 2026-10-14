@@ -4,10 +4,10 @@ import binascii
 import hashlib
 import hmac
 import html
-import ipaddress
 import json
 import logging
 import re
+import socket
 import sqlite3
 import time
 from datetime import datetime
@@ -124,29 +124,18 @@ def _signature_ok(secret: bytes, timestamp: str, signature: str, body: bytes) ->
     return hmac.compare_digest(expected, signature)
 
 
-# Set by reverse proxies and Cloudflare; the monitor's direct requests have none.
-_PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "CF-Connecting-IP")
-
-
-def _direct_from_localhost(request: web.Request) -> bool:
-    """A loopback peer, and no proxy in between. The site may listen on
-    every interface (e.g. for a reverse proxy in a container), so the
-    peer's address is checked as well as the headers, which anything
-    reaching the port directly could simply leave out."""
-    try:
-        ip = ipaddress.ip_address(request.remote or "")
-    except ValueError:
-        return False
-    if ip.version == 6 and ip.ipv4_mapped:  # how a dual-stack (::) socket sees IPv4 peers
-        ip = ip.ipv4_mapped
-    return ip.is_loopback and not any(h in request.headers for h in _PROXY_HEADERS)
+def over_ingest_socket(request: web.Request) -> bool:
+    """Whether the request came over the ingest socket, which only the
+    monitor can reach, rather than the public listener."""
+    sock = request.transport.get_extra_info("socket") if request.transport else None
+    return sock is not None and sock.family == socket.AF_UNIX
 
 
 async def _authorised_ingest(request: web.Request) -> bytes:
-    """The body of a signed request from the monitor daemon, which calls the
-    site directly on localhost. The reverse proxy should refuse /ingest*;
-    any other request is refused here too, in case it doesn't."""
-    if not _direct_from_localhost(request):
+    """The body of a signed request from the monitor daemon over the ingest
+    socket. On the public listener /ingest* doesn't exist (and the reverse
+    proxy should refuse it as well)."""
+    if not over_ingest_socket(request):
         raise web.HTTPNotFound()
     body = await _read_body(request)
     headers = request.headers

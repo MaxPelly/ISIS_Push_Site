@@ -26,6 +26,8 @@ class Config:
     port: int = _ini("SERVER", 8765)
     # The site's public origin, e.g. https://push.example.org: same-origin checks need it.
     public_origin: str = _ini("SERVER", "")
+    # The monitor posts to /ingest and /ingest/status here, and only here.
+    ingest_socket: str = _ini("SERVER", "ingest.sock")
 
     # Unset, the secret is systemd's ingest-secret credential (LoadCredential=).
     ingest_secret_file: str = _ini("SECRETS", "")
@@ -104,6 +106,7 @@ def load_config(path: Path) -> Config:
     if config.ingest_secret_file:
         config.ingest_secret_file = str(path.parent / config.ingest_secret_file)
     config.db_path = str(path.parent / config.db_path)
+    config.ingest_socket = str(path.parent / config.ingest_socket)
     config.vapid_key_file = str(path.parent / config.vapid_key_file)
     if not config.vapid_subject.startswith(("mailto:", "https://")):
         raise ConfigError("[SECRETS] vapid_subject must be a mailto: or https:// URL, e.g. mailto:admin@example.org")

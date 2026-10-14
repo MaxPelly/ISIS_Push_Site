@@ -1,11 +1,16 @@
 import sqlite3
+import stat
 import time
 from unittest.mock import patch
 
+import aiohttp
 import pytest
 from aiohttp import web
 
-from tests.helpers import payload, signed
+from push_site.__main__ import ingest_socket
+from push_site.app import create_app
+from tests.conftest import new_store
+from tests.helpers import make_config, payload, signed
 
 
 async def test_signed_notification_is_stored_and_passed_on_once(site):
@@ -45,27 +50,29 @@ async def test_bad_or_stale_signature_is_rejected(site, request_kwargs):
     assert site.store.feed(10) == [] and site.received == []
 
 
-@pytest.mark.parametrize("remote, header, status", [
-    # E.g. from a container on a Docker network, when the site listens on 0.0.0.0.
-    ("172.18.0.5", None, 404),
-    ("203.0.113.9", None, 404),
-    ("::ffff:192.0.2.6", None, 404),
-    (None, None, 404),
-    # Through a proxy, even one on this host.
-    ("127.0.0.1", "X-Forwarded-For", 404),
-    ("127.0.0.1", "Forwarded", 404),
-    ("127.0.0.1", "CF-Connecting-IP", 404),
-    ("127.0.0.1", None, 204),
-    ("::1", None, 204),
-    ("::ffff:127.0.0.1", None, 204),
-])
-async def test_only_direct_requests_from_loopback_are_taken(site, monkeypatch, remote, header, status):
-    monkeypatch.setattr(web.Request, "remote", property(lambda self: remote))
-    request = signed(payload())
-    if header:
-        request["headers"][header] = "for=203.0.113.9"
-    assert (await site.post("/ingest", **request)).status == status
-    assert len(site.received) == (status == 204)
+async def test_ingest_is_only_answered_over_the_ingest_socket(tmp_path, empty_db):
+    """Through the real listeners: a signed notification over TCP (the public
+    side, wherever it comes from) isn't found; over the socket it's taken."""
+    store = new_store(tmp_path, empty_db)
+    received = []
+    runner = web.AppRunner(create_app(make_config(tmp_path), store, received.append, "BPublicKey"))
+    await runner.setup()
+    sock = ingest_socket(tmp_path / "ingest.sock")
+    tcp = web.TCPSite(runner, "127.0.0.1", 0)
+    await tcp.start()
+    await web.SockSite(runner, sock).start()
+    try:
+        assert stat.S_IMODE((tmp_path / "ingest.sock").stat().st_mode) == 0o660
+        port = tcp._server.sockets[0].getsockname()[1]
+        async with aiohttp.ClientSession() as public:
+            for path in ("/ingest", "/ingest/status"):
+                assert (await public.post(f"http://127.0.0.1:{port}{path}", **signed(payload()))).status == 404
+        async with aiohttp.ClientSession(connector=aiohttp.UnixConnector(str(tmp_path / "ingest.sock"))) as monitor:
+            assert (await monitor.post("http://localhost/ingest", **signed(payload()))).status == 204
+        assert [n["id"] for n in received] == ["0f0e-1"]
+    finally:
+        await runner.cleanup()
+        store.close()
 
 
 async def test_oversized_body_is_refused(site):
