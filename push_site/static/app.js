@@ -292,14 +292,15 @@ function beamRow(beam) {
 }
 
 function instrumentRow(inst, powers) {
-  // An empty bar (no value: indeterminate) without a target to measure against.
-  const progress = inst.target > 0 ? el("progress", { max: inst.target, value: Math.max(inst.counts ?? 0, 0) })
-    : el("progress", { max: 1 });
+  // An indeterminate bar (no value) without counts, e.g. while its IOC is down, or a target.
+  const progress = inst.target > 0 && inst.counts !== null
+    ? el("progress", { max: inst.target, value: Math.max(inst.counts, 0) }) : el("progress", { max: 1 });
+  const state = inst.run_state.toLowerCase() || "unknown";
   const counts = inst.counts === null ? "—" : inst.counts.toFixed(1);
   const target = inst.target === null ? "" : ` / ${inst.auto ? "≈" : ""}${inst.target} µA·h`;
   return el("div", { className: `instrument ${powerClass(powers[inst.beam])}` },
     el("span", { className: "name", textContent: inst.name, title: `${inst.beam} beam` }),
-    el("span", { textContent: inst.run_number ? `${inst.run_number} ${inst.run_state.toLowerCase()}` : inst.run_state }),
+    el("span", { textContent: inst.run_number ? `${inst.run_number} ${state}` : state }),
     el("span", { className: "title", textContent: inst.title, title: inst.title }),
     el("span", {}, progress, el("span", { className: "counts", textContent: `${counts}${target}` })));
 }
@@ -321,6 +322,7 @@ async function loadStatus() {
   $("beams").replaceChildren(...status.beams.map(beamRow));
   $("instruments").replaceChildren(...status.instruments.map((inst) => instrumentRow(inst, powers)));
   $("mcr").textContent = status.mcr.news;
+  $("status").classList.toggle("stale", stale);
   const age = $("status-age");
   age.classList.toggle("offline", stale);
   const received = new Date(receivedAt * 1000);
@@ -334,6 +336,7 @@ function statusFailed(e) {
     location.replace("/");
     return;
   }
+  $("status").classList.add("stale");
   const age = $("status-age");
   age.classList.add("offline");
   age.textContent = statusReceived === null ? "Couldn't read the status."
