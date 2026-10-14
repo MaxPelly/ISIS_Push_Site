@@ -10,6 +10,8 @@ dist/
 
 # Local config, secrets and data
 push_site.ini
+.env
+*.bak
 *.secret
 *.pem
 *.db
