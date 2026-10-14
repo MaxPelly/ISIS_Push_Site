@@ -19,7 +19,7 @@ def payload(**overrides) -> dict:
     data = {
         "v": 1, "id": "0f0e-1", "title": "TS1 ⬇️ high → off", "text": "TS1 beam moved from high to off.",
         "severity": "attention", "emoji": "🔴",
-        "facts": [["Current", "0.000 uA"]], "flavour": "", "url": None, "url_label": "Open",
+        "facts": [["Current", "0.000 uA"]], "url": None, "url_label": "Open",
         "timestamp": "2026-01-02T03:04:00+00:00", "topic": "TS1",
     }
     data.update(overrides)

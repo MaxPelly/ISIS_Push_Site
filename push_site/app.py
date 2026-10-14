@@ -35,7 +35,7 @@ SEVERITIES = ("info", "good", "warning", "attention")
 _ID_RE = re.compile(r"[0-9a-f-]{1,64}")  # the monitor sends uuid4s; ids also end up in URLs
 _VERSION_RE = re.compile(r"[0-9A-Za-z.+-]{0,32}")  # the monitor's version, shown in the page footer
 MAX_TOPIC_LENGTH = 64
-_TEXT_FIELDS = ("title", "text", "emoji", "flavour", "url_label", "topic")
+_TEXT_FIELDS = ("title", "text", "emoji", "url_label", "topic")
 
 STATIC = Path(__file__).parent / "static"
 
