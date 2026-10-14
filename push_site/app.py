@@ -200,7 +200,7 @@ async def database_busy(request: web.Request, handler):
     try:
         return await handler(request)
     except sqlite3.OperationalError as exc:
-        if exc.sqlite_errorcode & 0xFF not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+        if getattr(exc, "sqlite_errorcode", 0) & 0xFF not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
             raise
         logger.warning(f"Database busy on {request.method} {request.path}: {exc}")
         raise web.HTTPServiceUnavailable(text="busy, try again", headers={"Retry-After": "2"}) from None
