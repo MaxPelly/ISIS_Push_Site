@@ -9,8 +9,9 @@ from aiohttp import web
 
 from push_site.__main__ import ingest_socket
 from push_site.app import create_app
+from push_site.config import ConfigError
 from tests.conftest import new_store
-from tests.helpers import make_config, payload, signed
+from tests.helpers import make_config, payload, signed, status
 
 
 async def test_signed_notification_is_stored_and_passed_on_once(site):
@@ -69,6 +70,7 @@ async def test_ingest_is_only_answered_over_the_ingest_socket(tmp_path, empty_db
                 assert (await public.post(f"http://127.0.0.1:{port}{path}", **signed(payload()))).status == 404
         async with aiohttp.ClientSession(connector=aiohttp.UnixConnector(str(tmp_path / "ingest.sock"))) as monitor:
             assert (await monitor.post("http://localhost/ingest", **signed(payload()))).status == 204
+            assert (await monitor.post("http://localhost/ingest/status", **signed(status()))).status == 204
         assert [n["id"] for n in received] == ["0f0e-1"]
     finally:
         await runner.cleanup()
@@ -120,3 +122,14 @@ async def test_a_locked_database_is_busy_not_an_error(site, caplog):
     readonly = _db_error("attempt to write a readonly database", sqlite3.SQLITE_READONLY)
     with patch.object(site.store, "add_notification", side_effect=readonly):
         assert (await site.post("/ingest", **signed(payload(id="2")))).status == 500  # a fault, not busy
+
+
+def test_the_ingest_socket_replaces_only_an_old_socket(tmp_path):
+    ingest_socket(tmp_path / "ingest.sock").close()  # an old one, left by a crash
+    ingest_socket(tmp_path / "ingest.sock").close()
+    (tmp_path / "push_site.db").write_text("data")
+    with pytest.raises(ConfigError, match="is a file, not a socket; it won't be replaced"):
+        ingest_socket(tmp_path / "push_site.db")
+    assert (tmp_path / "push_site.db").read_text() == "data"
+    with pytest.raises(ConfigError, match="ingest_socket .* can't be created"):
+        ingest_socket(tmp_path / "missing" / "ingest.sock")

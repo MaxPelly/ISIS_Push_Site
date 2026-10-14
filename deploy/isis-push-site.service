@@ -13,7 +13,8 @@
 
 [Unit]
 Description=ISIS Beam Monitor push notification site
-After=network-online.target
+# After Docker, if it's installed, so a host address on its bridge exists to bind to.
+After=network-online.target docker.service
 Wants=network-online.target
 # Never give up restarting (a start limit could leave it down for good after a
 # brief outage); RestartSteps backs off from 5s to 5min instead.
