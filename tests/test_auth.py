@@ -56,7 +56,7 @@ async def test_changes_must_be_json(site, data, headers, status):
     assert resp.status == status
 
 
-@pytest.mark.parametrize("token", ["wrong", "\udcff" * 43, "x" * 5000])
+@pytest.mark.parametrize("token", ["wrong", "\udcff" * 43, "x" * 5000], ids=["wrong", "not-utf8", "long"])
 async def test_api_needs_a_valid_device_cookie(site, token):
     assert (await api(site, "GET", "/api/me", token=token)).status == 401
 

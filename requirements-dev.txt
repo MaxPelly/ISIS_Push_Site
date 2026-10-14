@@ -1,5 +1,0 @@
--r requirements.txt
-pytest
-pytest-aiohttp
-pytest-cov
-ruff>=0.17,<0.18

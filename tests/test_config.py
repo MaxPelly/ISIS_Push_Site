@@ -59,7 +59,7 @@ def test_invalid_config(write, kwargs, match):
         load_config(write(body, **kwargs))
 
 
-@pytest.mark.parametrize("secret", ["short", "x" * 5000])
+@pytest.mark.parametrize("secret", ["short", "x" * 5000], ids=["short", "long"])
 def test_secret_length_is_checked(write, tmp_path, secret):
     (tmp_path / "push.secret").write_text(secret)
     with pytest.raises(ConfigError, match="must hold"):

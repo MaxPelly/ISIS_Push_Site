@@ -46,7 +46,7 @@ These steps assume the monitor is checked out at `$MONITOR_DIR`, run by its own 
    ```bash
    sudo apt install python3-venv   # on Debian/Ubuntu, if venv isn't available yet
    cd "$MONITOR_DIR/push_site"
-   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+   python3 -m venv .venv && .venv/bin/pip install -e .
    sudo apt install acl                # for setfacl
    sudo useradd --system --no-create-home --shell /usr/sbin/nologin isis-push
    # Read-only access for isis-push: traverse (no listing) on the checkout and its
@@ -201,8 +201,8 @@ A push carries only the id, the severity, the title (the emoji and title, cut to
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
-.venv/bin/pytest
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/python -m pytest
 ```
 
 The code is in `push_site/`:

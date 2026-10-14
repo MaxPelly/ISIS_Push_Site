@@ -63,7 +63,7 @@ async def test_subscription_goes_with_its_device(site):
     ("https://[::1/x", False),
     ("https://evil.com%2f.push.apple.com/x", False),
     ("https://evil.com;.push.apple.com/x", False),
-    ("https://fcm.googleapis.com/" + "x" * 1024, False),
+    pytest.param("https://fcm.googleapis.com/" + "x" * 1024, False, id="too-long"),
     (5, False),
 ])
 def test_only_push_service_endpoints_are_allowed(endpoint, ok):
