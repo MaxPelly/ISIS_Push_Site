@@ -1,15 +1,6 @@
 import stat
 
-import pytest
-
-from push_site.storage import DEVICE_IDLE_LIMIT, Store
-
-
-@pytest.fixture
-def store(tmp_path):
-    store = Store(tmp_path / "push.db")
-    yield store
-    store.close()
+from push_site.storage import DEVICE_IDLE_LIMIT
 
 
 def test_db_file_is_owner_only(tmp_path, store):

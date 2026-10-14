@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,13 +16,9 @@ from push_site import push
 from push_site.push import Pusher, push_payload
 from push_site.storage import DEVICE_IDLE_LIMIT, Store
 from push_site.config import ConfigError
-from tests.helpers import payload
+from tests.helpers import b64, payload
 
 SUBJECT = "mailto:admin@example.org"
-
-
-def b64(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
 @pytest.fixture
@@ -31,13 +26,6 @@ def vapid():
     key = Vapid02()
     key.generate_keys()
     return key
-
-
-@pytest.fixture
-def store(tmp_path):
-    store = Store(tmp_path / "push.db")
-    yield store
-    store.close()
 
 
 def add_device(store, endpoint, topics=("TS1",), quiet=None):

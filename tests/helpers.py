@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import json
@@ -6,6 +7,11 @@ import time
 from push_site.config import Config
 
 SECRET = b"k" * 32
+
+
+def b64(raw: bytes) -> str:
+    """Unpadded base64url, as Web Push keys are."""
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
 def make_config(tmp_path, **overrides) -> Config:

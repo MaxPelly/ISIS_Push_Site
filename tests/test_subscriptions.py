@@ -1,15 +1,9 @@
-import base64
-
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from push_site.app import keys_ok, push_endpoint_ok
-from tests.helpers import api, signed_in
-
-
-def b64(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+from tests.helpers import api, b64, signed_in
 
 
 POINT = ec.generate_private_key(ec.SECP256R1()).public_key().public_bytes(
