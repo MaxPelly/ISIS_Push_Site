@@ -6,6 +6,7 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- **Breaking (deployment):** the site is installed on its own, not as the monitor's submodule: code in a root-owned `/opt/isis-push-site`, config and secret in `/etc/isis-push-site`, database and VAPID key in `/var/lib/isis-push-site` (`StateDirectory=`), the ingest socket in `/run/isis-push-site` for the `isis-ingest` group, and the secret as a systemd credential, so no ACLs. `deploy/isis-push-site.service`, `deploy/isis-push` (which now also runs `vapid`) and the README's setup follow this layout; `deploy/Caddyfile` proxies to the Docker bridge's gateway when Caddy runs in a container.
 - **Breaking:** the monitor posts to `/ingest` and `/ingest/status` over a Unix socket, `[SERVER] ingest_socket` (default `ingest.sock` beside the config), which the site makes read-writable by its group. On the public listener they no longer exist (404), so the loopback-peer and proxy-header checks are gone, and the public listener can bind wherever the reverse proxy needs, e.g. a Docker bridge address. Needs monitor 2.1.0 or later (`[PUSH] url = unix:<socket>`).
 - `[SECRETS] ingest_secret_file` is optional: unset, the site reads systemd's `ingest-secret` credential (`LoadCredential=`). Only `serve` reads the secret, so the admin commands no longer need access to it.
 - The dependencies are only in `pyproject.toml`: install with `pip install -e .` (`pip install -e '.[dev]'` for the tests); `requirements.txt` and `requirements-dev.txt` are gone.

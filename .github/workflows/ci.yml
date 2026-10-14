@@ -47,9 +47,7 @@ jobs:
         visudo -cf deploy/isis-push.sudoers
     - name: Check the systemd unit
       run: |
-        # A stand-in checkout with the interpreter where the unit expects it
-        monitor="$RUNNER_TEMP/monitor"
-        mkdir -p "$monitor/push_site/.venv/bin" "$monitor/push_site/data"
-        ln -s "$(command -v python3)" "$monitor/push_site/.venv/bin/python"
-        sed -e "/^#/!s|/path/to/ISIS_Beam_Monitor|$monitor|g" deploy/isis-push-site.service > "$RUNNER_TEMP/isis-push-site.service"
-        systemd-analyze verify "$RUNNER_TEMP/isis-push-site.service"
+        # The interpreter where the unit expects it
+        sudo mkdir -p /opt/isis-push-site/.venv/bin
+        sudo ln -s "$(command -v python3)" /opt/isis-push-site/.venv/bin/python
+        systemd-analyze verify deploy/isis-push-site.service

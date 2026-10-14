@@ -1,9 +1,10 @@
 # Optional: lets members of isis-push-admin run the site's admin commands
 # (/usr/local/bin/isis-push, from deploy/isis-push) as isis-push without
 # being root or full sudoers. The rule allows only that wrapper, which only
-# runs invite, devices and revoke; what that grants is minting invite links
-# (anyone with one can sign in and read the notifications) and revoking
-# devices, so only add people you'd trust with that.
+# runs invite, devices, revoke and vapid (which won't replace an existing key);
+# what that grants is minting invite links (anyone with one can sign in and
+# read the notifications), listing and revoking devices, so only add people
+# you'd trust with that.
 #   sudo groupadd --system isis-push-admin && sudo usermod -aG isis-push-admin "$USER"
 # Check it before installing: a broken file in sudoers.d stops sudo working at all.
 #   sudo visudo -cf deploy/isis-push.sudoers && sudo install -m 440 deploy/isis-push.sudoers /etc/sudoers.d/isis-push

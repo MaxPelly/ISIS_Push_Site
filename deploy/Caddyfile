@@ -1,6 +1,7 @@
 # Example Caddy site behind Cloudflare's proxy (a proxied DNS record, with
-# Cloudflare's SSL mode set to "Full (strict)"). The monitor daemon posts to
-# /ingest directly on 127.0.0.1:8765, so that path is never served publicly.
+# Cloudflare's SSL mode set to "Full (strict)"). The monitor posts to /ingest
+# over the site's Unix socket; the listener proxied here doesn't have it, and
+# Caddy refuses it too.
 push.example.org {
 	# A Cloudflare Origin Certificate (SSL/TLS > Origin Server), readable by
 	# the caddy user: Caddy's HTTP and TLS-ALPN challenges can't get through
@@ -23,7 +24,8 @@ push.example.org {
 	}
 
 	encode zstd gzip
-	# For Caddy in Docker: host.docker.internal:8765, with the site's host = 0.0.0.0.
+	# For Caddy in Docker: the Docker bridge's gateway, e.g. 172.17.0.1:8765
+	# (`docker network inspect bridge`), with the site's host set to it.
 	reverse_proxy 127.0.0.1:8765
 
 	# Rate limiting is best done with a Cloudflare rate limiting rule on

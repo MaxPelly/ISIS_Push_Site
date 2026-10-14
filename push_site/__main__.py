@@ -120,7 +120,7 @@ def main(argv=None) -> None:
         config = load_config(args.config)
         if args.command == "serve":
             config.ingest_secret = read_ingest_secret(config)
-        if args.command == "vapid":  # run by the directory's owner, who can't open data/
+        if args.command == "vapid":  # needs no database
             return vapid(config)
         store = Store(Path(config.db_path))
         try:
