@@ -1,6 +1,6 @@
 import pytest
 
-from push_site.config import ConfigError, load_config
+from push_site.config import ConfigError, load_config, read_ingest_secret
 
 SECRET = "s" * 64
 
@@ -28,6 +28,7 @@ def test_defaults_and_secret(write, tmp_path):
     assert config.vapid_key_file == str(tmp_path / "vapid.pem")
     assert (config.feed_items_per_kind, config.feed_max_days) == (75, 30.0)
     assert config.public_origin == "https://push.example.org"
+    config.ingest_secret = read_ingest_secret(config)
     assert config.ingest_secret == SECRET.encode()
     assert SECRET not in repr(config)
 
@@ -45,10 +46,8 @@ def test_values_are_read(write):
     ({"origin": "https://[abc"}, "public_origin"),
     ({"origin": "https://push.example.org:99999"}, "public_origin"),
     ({"body": "[STORAGE]\nfeed_items_per_kind = 9\n"}, "feed_items_per_kind must be between 10"),
-    ({"secret": ""}, "ingest_secret_file is required"),
     ({"subject": ""}, "vapid_subject"),
     ({"subject": "admin@example.org"}, "vapid_subject"),
-    ({"secret": "/nonexistent"}, "could not be read"),
     ({"body": "port = 0\n"}, "port must be between"),
     ({"body": "[STORAGE]\nfeed_max_days = nan\n"}, "feed_max_days must be between"),
     ({"body": "[STORAGE]\nfeed_items_per_kind = lots\n"}, r"\[STORAGE\] feed_items_per_kind"),
@@ -63,12 +62,12 @@ def test_invalid_config(write, kwargs, match):
 def test_secret_length_is_checked(write, tmp_path, secret):
     (tmp_path / "push.secret").write_text(secret)
     with pytest.raises(ConfigError, match="must hold"):
-        load_config(write())
+        read_ingest_secret(load_config(write()))
 
 
 def test_world_readable_secret_warns(write, tmp_path, caplog):
     (tmp_path / "push.secret").chmod(0o644)
-    load_config(write())
+    read_ingest_secret(load_config(write()))
     assert "world-readable" in caplog.text
 
 
@@ -79,3 +78,18 @@ def test_missing_file(tmp_path):
 
 def test_default_port_is_dropped_from_the_origin(write):
     assert load_config(write(origin="https://Push.Example.org:443")).public_origin == "https://push.example.org"
+
+
+def test_the_secret_is_the_file_or_else_systemds_credential(write, tmp_path, monkeypatch):
+    monkeypatch.delenv("CREDENTIALS_DIRECTORY", raising=False)
+    without = load_config(write(secret=""))  # the admin commands don't need it
+    with pytest.raises(ConfigError, match="set \\[SECRETS\\] ingest_secret_file, or give the service the ingest-secret"):
+        read_ingest_secret(without)
+    credentials = tmp_path / "credentials"
+    credentials.mkdir()
+    (credentials / "ingest-secret").write_text("c" * 40 + "\n")
+    monkeypatch.setenv("CREDENTIALS_DIRECTORY", str(credentials))
+    assert read_ingest_secret(without) == b"c" * 40
+    assert read_ingest_secret(load_config(write())) == SECRET.encode()  # a file wins
+    with pytest.raises(ConfigError, match="ingest_secret_file could not be read"):
+        read_ingest_secret(load_config(write(secret="/nonexistent")))

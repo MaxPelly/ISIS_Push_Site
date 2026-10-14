@@ -1,6 +1,7 @@
 """Loading and validating push_site.ini."""
 import configparser
 import logging
+import os
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -26,8 +27,9 @@ class Config:
     # The site's public origin, e.g. https://push.example.org: same-origin checks need it.
     public_origin: str = _ini("SERVER", "")
 
+    # Unset, the secret is systemd's ingest-secret credential (LoadCredential=).
     ingest_secret_file: str = _ini("SECRETS", "")
-    ingest_secret: bytes = field(default=b"", repr=False)  # read from ingest_secret_file
+    ingest_secret: bytes = field(default=b"", repr=False)  # read by serve, with read_ingest_secret()
     # Created by `python -m push_site vapid`; identifies this site to push services.
     vapid_key_file: str = _ini("SECRETS", "vapid.pem")
     # How push services can contact the site's admin: mailto: or https: (required).
@@ -97,14 +99,26 @@ def load_config(path: Path) -> Config:
     # As browsers send it in the Origin header: lower-case, no default port.
     netloc = origin.netloc.lower()
     config.public_origin = f"https://{netloc[:-4] if netloc.endswith(':443') else netloc}"
-    if not config.ingest_secret_file:
-        raise ConfigError("[SECRETS] ingest_secret_file is required")
     # Relative paths are relative to the config file, so the admin commands
     # find the same files wherever they're run from.
-    config.ingest_secret_file = str(path.parent / config.ingest_secret_file)
+    if config.ingest_secret_file:
+        config.ingest_secret_file = str(path.parent / config.ingest_secret_file)
     config.db_path = str(path.parent / config.db_path)
     config.vapid_key_file = str(path.parent / config.vapid_key_file)
     if not config.vapid_subject.startswith(("mailto:", "https://")):
         raise ConfigError("[SECRETS] vapid_subject must be a mailto: or https:// URL, e.g. mailto:admin@example.org")
-    config.ingest_secret = read_secret(Path(config.ingest_secret_file), "[SECRETS] ingest_secret_file")
     return config
+
+
+CREDENTIAL = "ingest-secret"
+
+
+def read_ingest_secret(config: Config) -> bytes:
+    """The secret the monitor signs with: from [SECRETS] ingest_secret_file, or
+    else systemd's credential. Only serving needs it, not the admin commands."""
+    if config.ingest_secret_file:
+        return read_secret(Path(config.ingest_secret_file), "[SECRETS] ingest_secret_file")
+    if "CREDENTIALS_DIRECTORY" not in os.environ:
+        raise ConfigError(f"set [SECRETS] ingest_secret_file, or give the service the {CREDENTIAL} credential "
+                          f"(LoadCredential={CREDENTIAL}:<file>)")
+    return read_secret(Path(os.environ["CREDENTIALS_DIRECTORY"]) / CREDENTIAL, f"The {CREDENTIAL} credential")

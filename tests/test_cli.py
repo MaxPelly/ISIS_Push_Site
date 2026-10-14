@@ -7,12 +7,11 @@ from push_site.storage import Store
 
 
 @pytest.fixture
-def ini(tmp_path):
-    secret = tmp_path / "push.secret"
-    secret.write_text("s" * 32)
-    secret.chmod(0o600)
+def ini(tmp_path, monkeypatch):
+    """No secret: only serving needs it, not the admin commands."""
+    monkeypatch.delenv("CREDENTIALS_DIRECTORY", raising=False)
     path = tmp_path / "push_site.ini"
-    path.write_text(f"[SERVER]\npublic_origin = https://push.example.org\n[SECRETS]\ningest_secret_file = {secret}\n"
+    path.write_text("[SERVER]\npublic_origin = https://push.example.org\n[SECRETS]\n"
                     "vapid_subject = mailto:admin@example.org\n"
                     f"[STORAGE]\ndb_path = {tmp_path / 'push.db'}\n")
     return path

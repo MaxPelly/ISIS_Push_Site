@@ -9,10 +9,11 @@
 public_origin = https://push.example.org
 
 [SECRETS]
-# The same secret as the monitor's [PUSH] secret_file (at least 32 characters,
-# e.g. `openssl rand -hex 32`; surrounding whitespace is ignored). Keep it chmod 600,
-# readable by the site's user through an ACL (see the README).
-ingest_secret_file = push.secret
+# The secret the monitor signs with (32 to 4096 characters, e.g. `openssl rand
+# -hex 32`; surrounding whitespace is ignored). Left unset, the site reads
+# systemd's ingest-secret credential (LoadCredential=ingest-secret:<file> in its
+# unit), as the README's setup does; only `serve` needs it.
+# ingest_secret_file = push.secret
 # The site's VAPID private key, created by `python -m push_site vapid push_site.ini`.
 # vapid_key_file = vapid.pem
 # A contact address for push services (Apple, Google, Mozilla) to reach the admin.

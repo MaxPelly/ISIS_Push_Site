@@ -14,7 +14,7 @@ from aiohttp import web
 
 from push_site import __version__
 from push_site.app import create_app
-from push_site.config import ConfigError, load_config
+from push_site.config import ConfigError, load_config, read_ingest_secret
 from push_site.push import Pusher, generate_vapid_key, load_vapid_key, public_key
 from push_site.storage import Store
 
@@ -105,6 +105,8 @@ def main(argv=None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
         config = load_config(args.config)
+        if args.command == "serve":
+            config.ingest_secret = read_ingest_secret(config)
         if args.command == "vapid":  # run by the directory's owner, who can't open data/
             return vapid(config)
         store = Store(Path(config.db_path))

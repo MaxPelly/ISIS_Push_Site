@@ -6,6 +6,7 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- `[SECRETS] ingest_secret_file` is optional: unset, the site reads systemd's `ingest-secret` credential (`LoadCredential=`). Only `serve` reads the secret, so the admin commands no longer need access to it.
 - The dependencies are only in `pyproject.toml`: install with `pip install -e .` (`pip install -e '.[dev]'` for the tests); `requirements.txt` and `requirements-dev.txt` are gone.
 - A request that finds the database locked for longer than its 1s busy timeout (e.g. by an `isis-push` admin command) gets HTTP 503 with `Retry-After: 2`, rather than a 500 with a traceback, and the site logs one warning line. Any other database error is still a 500.
 
