@@ -276,3 +276,18 @@ async def test_ingested_notifications_are_pushed(tmp_path, aiohttp_client, vapid
         await asyncio.wait_for(sent.wait(), 2)
         await client.close()
     store.close()
+
+
+@pytest.mark.parametrize("overrides, urgency", [
+    ({"severity": "attention", "title": "TS1 ⬇️ high → off"}, "high"),  # beam off
+    ({"severity": "good", "title": "TS1 ⬆️ off → low"}, "high"),  # back on
+    ({"severity": "good", "title": "Muons ⬆️ off → high", "topic": "Muons"}, "high"),
+    ({"severity": "good", "title": "TS1 ⬆️ low → high"}, "normal"),  # on already
+    ({"severity": "warning", "title": "TS2 ⬇️ high → low", "topic": "TS2"}, "high"),
+    ({"severity": "good", "title": "MCR news", "topic": "MCR"}, "high"),  # all MCR news
+    ({"severity": "info", "title": "MCR news", "topic": "MCR"}, "high"),
+    ({"severity": "good", "title": "PEARL: Run finished", "topic": "PEARL"}, "normal"),
+    ({"severity": "info", "title": "Daily summary: TS1 off → on", "topic": "Summary"}, "normal"),  # not a beam card
+])
+def test_push_urgency(overrides, urgency):
+    assert push.push_urgency(notification(**overrides)) == urgency

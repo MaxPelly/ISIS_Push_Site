@@ -6,6 +6,8 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- MCR news, and a beam coming back on after being off, are pushed with high urgency as well as warnings and a beam going off, so a phone that's been idle (e.g. in Android's Doze) shows them straight away rather than at its next wake-up.
+
 ## [1.1.3] - 2026-10-14
 
 For monitor 1.3.0rc3. No config change.

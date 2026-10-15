@@ -14,7 +14,7 @@ from py_vapid import Vapid02
 from pywebpush import WebPushException, webpush_async
 
 from push_site.config import ConfigError
-from push_site.prefs import URGENT_SEVERITIES, wants
+from push_site.prefs import BASE_TOPICS, URGENT_SEVERITIES, wants
 from push_site.storage import Store
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,20 @@ def push_payload(notification: dict) -> str:
     }, ensure_ascii=False)  # escaped, each emoji would take 12 bytes of the 4 KB
 
 
+BEAM_TOPICS = BASE_TOPICS[:3]  # TS1, TS2, Muons
+
+
+def push_urgency(notification: dict) -> str:
+    """"high" wakes a sleeping phone at once; "normal" may wait for its next
+    wake-up (e.g. Android's Doze). High for warnings and attention (e.g. a beam
+    going off), all MCR news, and a beam coming back on (the monitor titles a
+    beam change "<beam> <arrow> <from> → <to>")."""
+    if (notification["severity"] in URGENT_SEVERITIES or notification["topic"] == "MCR"
+            or (notification["topic"] in BEAM_TOPICS and " off → " in notification["title"])):
+        return "high"
+    return "normal"
+
+
 class Pusher:
     """Sends each new notification to the devices that want it.
 
@@ -121,7 +135,7 @@ class Pusher:
         if not targets:
             return
         data = push_payload(notification)
-        urgency = "high" if notification["severity"] in URGENT_SEVERITIES else "normal"
+        urgency = push_urgency(notification)
         semaphore = asyncio.Semaphore(CONCURRENCY)
         results = await asyncio.gather(
             *(self._send(session, semaphore, t, data, urgency) for t in targets), return_exceptions=True
