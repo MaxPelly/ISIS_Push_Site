@@ -47,6 +47,7 @@ The site runs as its own user, `isis-push`, so a compromise can't act as the mon
    sudo git clone --branch vX.Y.Z https://github.com/MaxPelly/ISIS_Push_Site /opt/isis-push-site
    sudo python3 -m venv /opt/isis-push-site/.venv
    sudo /opt/isis-push-site/.venv/bin/pip install -e /opt/isis-push-site
+   sudo chmod -R o+rX /opt/isis-push-site   # in case your umask reaches sudo: isis-push must read it
    sudo useradd --system --no-create-home --shell /usr/sbin/nologin isis-push
    sudo groupadd --system isis-ingest
    sudo usermod -aG isis-ingest MONITOR_USER   # the user the monitor's daemon runs as
