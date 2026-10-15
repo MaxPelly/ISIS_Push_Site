@@ -1,10 +1,10 @@
 """The monitor's status: its latest view of the beams, instruments and MCR news.
 
-The monitor POSTs it, signed like a notification, to /ingest/status every
-minute or so and on significant changes; the site keeps the latest and serves
-it to signed-in devices. Version 1:
+The monitor POSTs it, signed like a notification, to /ingest/status within a
+few seconds of any change, and at least every interval_s; the site keeps the
+latest and serves it to signed-in devices. Version 1:
 
-    {"v": 1, "kind": "status", "generated_at": ISO time, "interval_s": seconds between sends,
+    {"v": 1, "kind": "status", "generated_at": ISO time, "interval_s": the most seconds between sends,
      "monitor_version": str, "health": {component: status},
      "beams": [{"name", "current": µA or null, "power", "since": ISO time or null,
                 "history": {"interval_s", "values": [[µA or null, power], ...]}}],

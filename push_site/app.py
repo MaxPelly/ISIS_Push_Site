@@ -70,7 +70,7 @@ STORE = web.AppKey("store", Store)
 # Called with each newly stored notification (fan-out to push subscribers);
 # it must not block or raise, since the notification is already stored.
 ON_NOTIFICATION = web.AppKey("on_notification", Callable[[dict], None])
-# The last status rejection warned of, so a monitor resending the same bad status every minute warns once.
+# The last status rejection warned of, so a monitor resending the same bad status every few seconds warns once.
 STATUS_REJECTED = web.AppKey("status_rejected", dict)
 
 
