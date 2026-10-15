@@ -5,6 +5,7 @@ the event loop rather than through a thread pool.
 """
 import hashlib
 import json
+import math
 import os
 import secrets
 import sqlite3
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 );
 """
 
+STATUS_SAVE_INTERVAL = 60  # seconds: the newest status is written at most this often (and on close)
 DEVICE_IDLE_LIMIT = 365 * 86400  # a device unused for this long has to be invited again
 TOPIC_RETENTION = 90 * 86400  # topics not seen for this long drop off the preferences page
 LAST_SEEN_RESOLUTION = 3600  # last_seen is only rewritten when this much older
@@ -85,8 +87,16 @@ class Store:
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.executescript(SCHEMA)
+        # The newest status, kept in memory as it comes every few seconds and
+        # saved at most every STATUS_SAVE_INTERVAL (and on close), so a restart
+        # can serve it at once: (status, generated_at, received_at).
+        row = self.db.execute("SELECT payload, generated_at, received_at FROM status").fetchone()
+        self._status = (json.loads(row["payload"]), row["generated_at"], row["received_at"]) if row else None
+        self._status_saved_at, self._status_unsaved = -math.inf, False
 
     def close(self) -> None:
+        if self._status_unsaved:
+            self._save_status(time.time())
         self.db.close()
 
     def add_notification(self, notification: dict, per_kind: int, max_days: float,
@@ -214,19 +224,27 @@ class Store:
         it isn't (an older one re-sent, or out of order)."""
         now = time.time() if now is None else now
         generated = datetime.fromisoformat(status["generated_at"]).timestamp()
+        if self._status and generated <= self._status[1]:
+            return False
+        self._status, self._status_unsaved = (status, generated, now), True
+        if now - self._status_saved_at >= STATUS_SAVE_INTERVAL:
+            self._save_status(now)
+        return True
+
+    def _save_status(self, now: float) -> None:
+        status, generated, received = self._status
         with self.db:
-            return self.db.execute(
+            self.db.execute(
                 "INSERT INTO status (id, generated_at, received_at, payload) VALUES (1, ?, ?, ?) "
                 "ON CONFLICT (id) DO UPDATE SET generated_at = excluded.generated_at, "
-                "received_at = excluded.received_at, payload = excluded.payload "
-                "WHERE excluded.generated_at > status.generated_at",
-                (generated, now, json.dumps(status, ensure_ascii=False)),
-            ).rowcount == 1
+                "received_at = excluded.received_at, payload = excluded.payload",
+                (generated, received, json.dumps(status, ensure_ascii=False)),
+            )
+        self._status_saved_at, self._status_unsaved = now, False
 
     def status(self) -> Optional[Tuple[dict, float]]:
         """The status kept, and when it came."""
-        row = self.db.execute("SELECT payload, received_at FROM status").fetchone()
-        return (json.loads(row["payload"]), row["received_at"]) if row else None
+        return (self._status[0], self._status[2]) if self._status else None
 
     def topics(self) -> List[str]:
         return [row["name"] for row in self.db.execute("SELECT name FROM topics ORDER BY name")]

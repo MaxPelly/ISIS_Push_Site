@@ -1,3 +1,4 @@
+import json
 import stat
 
 from push_site.storage import DEVICE_IDLE_LIMIT
@@ -79,3 +80,24 @@ def test_delete_device(store):
     assert store.delete_device(device_id)
     assert not store.delete_device(device_id)
     assert store.devices() == []
+
+
+def test_the_status_is_saved_at_most_once_a_minute_and_on_close(tmp_path, store):
+    from tests.helpers import status
+
+    def saved():
+        row = store.db.execute("SELECT payload FROM status").fetchone()
+        return json.loads(row["payload"])["generated_at"] if row else None
+
+    times = [f"2026-10-13T10:31:{s:02d}+00:00" for s in (0, 5, 10)]
+    assert store.set_status(status(generated_at=times[0]), now=100) and saved() == times[0]
+    assert store.set_status(status(generated_at=times[1]), now=105)
+    assert saved() == times[0] and store.status()[0]["generated_at"] == times[1]  # served from memory
+    assert not store.set_status(status(generated_at=times[0]), now=106)  # not newer than the one in memory
+    assert store.set_status(status(generated_at=times[2]), now=160) and saved() == times[2]  # a minute on
+    store.set_status(status(generated_at="2026-10-13T10:32:00+00:00"), now=170)
+    store.close()
+    from push_site.storage import Store
+    reopened = Store(tmp_path / "push.db")  # the last was saved on close
+    assert reopened.status()[0]["generated_at"] == "2026-10-13T10:32:00+00:00"
+    reopened.close()

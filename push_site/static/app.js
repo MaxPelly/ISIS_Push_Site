@@ -240,7 +240,7 @@ function showTab(tab) {
 // --- Status ----------------------------------------------------------------
 
 const SVG = "http://www.w3.org/2000/svg";
-const STATUS_POLL = 30000;  // ms between reads of /api/status while the page is visible
+const STATUS_POLL = 5000;  // ms between reads of /api/status while the page is visible
 let statusTimer = null;
 
 function time(iso) {
