@@ -16,7 +16,7 @@ button.link { background: none; color: #1f6feb; padding: 0; text-decoration: und
 .hint { color: #57606a; font-size: 0.9rem; }
 .version { text-align: center; font-size: 0.8rem; }
 .message { background: #fff1e6; border-left: 4px solid #d1242f; padding: 0.6rem 0.8rem; border-radius: 6px; }
-/* Status. Power colours as in the monitor's TUI. */
+/* Status. Power colours: high green, medium amber, low orange, off red. */
 .power-high { --power: #1a7f37; }
 .power-medium { --power: #bf8700; }
 .power-low { --power: #d4730b; }
@@ -35,7 +35,7 @@ button.link { background: none; color: #1f6feb; padding: 0; text-decoration: und
 .instrument .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .instrument progress { width: 100%; }
 .instrument .counts { display: block; font-size: 0.8rem; color: #57606a; }
-@media (max-width: 30rem) {  /* two lines per instrument, as the TUI's compact layout */
+@media (max-width: 30rem) {  /* two lines per instrument on a narrow screen */
   .instrument { grid-template-columns: 4.5rem 5.5rem 1fr; }
   .instrument .title { grid-column: 1 / -1; grid-row: 2; }
 }
