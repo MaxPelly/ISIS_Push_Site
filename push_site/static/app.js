@@ -311,14 +311,14 @@ function runTitle(inst) {
   return title;
 }
 
-function instrumentRow(inst, powers) {
+function instrumentRow(inst, power) {
   // An indeterminate bar (no value) without counts, e.g. while its IOC is down, or a target.
   const progress = inst.target > 0 && inst.counts !== null
     ? el("progress", { max: inst.target, value: Math.max(inst.counts, 0) }) : el("progress", { max: 1 });
   const state = inst.run_state.toLowerCase() || "unknown";
   const counts = inst.counts === null ? "—" : inst.counts.toFixed(1);
   const target = inst.target === null ? "" : ` / ${inst.auto ? "≈" : ""}${inst.target} µA·h`;
-  return el("div", { className: `instrument ${powerClass(powers[inst.beam])}` },
+  return el("div", { className: `instrument ${powerClass(power)}` },
     el("span", { className: "name", textContent: inst.name, title: `${inst.beam} beam` }),
     el("span", { textContent: inst.run_number ? `${inst.run_number} ${state}` : state }),
     runTitle(inst),
@@ -333,17 +333,32 @@ function clock(when) {
   return when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+// Shows `render(...row)` for each row, replacing only those whose data changed, so
+// a text selection or a screen reader's place in the others survives a refresh.
+function updateRows(container, rows, render) {
+  if (container.children.length !== rows.length) container.replaceChildren(...rows.map(() => el("div")));
+  [...container.children].forEach((node, i) => {
+    const key = JSON.stringify(rows[i]);
+    if (node.dataset.key === key) return;
+    const row = render(...rows[i]);
+    row.dataset.key = key;
+    node.replaceWith(row);
+  });
+}
+
 async function loadStatus() {
   const { status, received_at: receivedAt, age: ageSeconds, stale } = await api("GET", "/api/status");
   $("status-none").hidden = !!status;
   if (!status) return;
   statusReceived = Date.now() - ageSeconds * 1000;
   const powers = Object.fromEntries(status.beams.map((b) => [b.name, b.power]));
-  $("beams").replaceChildren(...status.beams.map(beamRow));
-  const focused = document.activeElement.dataset.instrument;  // a run title, kept focused across the rebuild
-  $("instruments").replaceChildren(...status.instruments.map((inst) => instrumentRow(inst, powers)));
-  if (focused) $("instruments").querySelector(`[data-instrument="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
-  $("mcr").textContent = status.mcr.news;
+  updateRows($("beams"), status.beams.map((beam) => [beam]), beamRow);
+  const focused = document.activeElement.dataset.instrument;  // a run title, kept focused if its row changes
+  updateRows($("instruments"), status.instruments.map((inst) => [inst, powers[inst.beam]]), instrumentRow);
+  if (focused && !document.activeElement.dataset.instrument) {
+    $("instruments").querySelector(`[data-instrument="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
+  }
+  if ($("mcr").textContent !== status.mcr.news) $("mcr").textContent = status.mcr.news;
   $("status").classList.toggle("stale", stale);
   const age = $("status-age");
   age.classList.toggle("offline", stale);
