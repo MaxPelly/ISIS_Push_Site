@@ -296,7 +296,9 @@ const openTitles = new Set();
 
 // A long run title is cut short; tapping it shows it all, and tapping again cuts it short.
 function runTitle(inst) {
-  const title = el("button", { type: "button", className: "title", textContent: inst.title, title: inst.title });
+  if (!inst.title) return el("span", { className: "title" });  // keeps its place in the grid
+  const title = el("button", { type: "button", className: "title" }, el("span", { textContent: inst.title }));
+  title.dataset.instrument = inst.name;
   const show = (open) => {
     title.classList.toggle("open", open);
     title.setAttribute("aria-expanded", String(open));
@@ -338,7 +340,9 @@ async function loadStatus() {
   statusReceived = Date.now() - ageSeconds * 1000;
   const powers = Object.fromEntries(status.beams.map((b) => [b.name, b.power]));
   $("beams").replaceChildren(...status.beams.map(beamRow));
+  const focused = document.activeElement.dataset.instrument;  // a run title, kept focused across the rebuild
   $("instruments").replaceChildren(...status.instruments.map((inst) => instrumentRow(inst, powers)));
+  if (focused) $("instruments").querySelector(`[data-instrument="${CSS.escape(focused)}"]`)?.focus();
   $("mcr").textContent = status.mcr.news;
   $("status").classList.toggle("stale", stale);
   const age = $("status-age");

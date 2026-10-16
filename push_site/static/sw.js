@@ -23,17 +23,15 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = "/#n=" + encodeURIComponent(event.notification.data.id);
   event.waitUntil((async () => {
-    // In an open page if there is one, else (or if the browser won't navigate or focus
-    // it) in a new one, so a tap always shows the site.
-    for (const client of await self.clients.matchAll({ type: "window" })) {
-      try {
-        const page = await client.navigate(url);  // null if it has left the site
-        if (page) return await page.focus();
-      } catch (e) {
-        break;
-      }
+    // In an open page, or a new one if there's none (client undefined) or the browser
+    // won't focus it, so a tap always shows the site.
+    const [client] = await self.clients.matchAll({ type: "window" });
+    try {
+      await client.focus();
+    } catch (e) {
+      return self.clients.openWindow(url);
     }
-    return self.clients.openWindow(url);
+    return client.navigate(url).catch(() => {});  // shown, if not scrolled to the notification
   })());
 });
 
