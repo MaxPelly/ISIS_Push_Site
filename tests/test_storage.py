@@ -1,5 +1,8 @@
 import json
+import sqlite3
 import stat
+
+import pytest
 
 from push_site.storage import DEVICE_IDLE_LIMIT
 
@@ -101,3 +104,16 @@ def test_the_status_is_saved_at_most_once_a_minute_and_on_close(tmp_path, store)
     reopened = Store(tmp_path / "push.db")  # the last was saved on close
     assert reopened.status()[0]["generated_at"] == "2026-10-13T10:32:00+00:00"
     reopened.close()
+
+
+def test_a_status_that_cant_be_saved_is_still_taken_and_tried_again_a_minute_on(tmp_path, store, caplog):
+    from tests.helpers import status
+    store.db.close()
+    store.db = sqlite3.connect(f"file:{tmp_path / 'push.db'}?mode=ro", uri=True)  # e.g. a full or read-only disk
+    for now in (100, 105, 160):
+        assert store.set_status(status(generated_at=f"2026-10-13T10:{now // 60:02d}:{now % 60:02d}+00:00"), now=now)
+    assert caplog.text.count("Couldn't save the status") == 1
+    assert store._status_saved_at == 160  # tried again a minute on, not at 105
+    store.close()  # still unsaved, and closed regardless
+    with pytest.raises(sqlite3.ProgrammingError):
+        store.db.execute("SELECT 1")

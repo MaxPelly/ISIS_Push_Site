@@ -5,6 +5,7 @@ the event loop rather than through a thread pool.
 """
 import hashlib
 import json
+import logging
 import math
 import os
 import secrets
@@ -15,6 +16,8 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from push_site.prefs import DEFAULT_PREFS, FEED_KINDS, OTHER_KIND
+
+logger = logging.getLogger(__name__)
 
 SCHEMA = """
 -- The monitor's latest status (see status.py); generated_at as Unix time.
@@ -93,11 +96,14 @@ class Store:
         row = self.db.execute("SELECT payload, generated_at, received_at FROM status").fetchone()
         self._status = (json.loads(row["payload"]), row["generated_at"], row["received_at"]) if row else None
         self._status_saved_at, self._status_unsaved = -math.inf, False
+        self._status_save_failed = False
 
     def close(self) -> None:
-        if self._status_unsaved:
-            self._save_status(time.time())
-        self.db.close()
+        try:
+            if self._status_unsaved:
+                self._save_status(time.time())
+        finally:
+            self.db.close()
 
     def add_notification(self, notification: dict, per_kind: int, max_days: float,
                          now: Optional[float] = None) -> bool:
@@ -232,15 +238,27 @@ class Store:
         return True
 
     def _save_status(self, now: float) -> None:
+        """A database error (e.g. locked for longer than the busy timeout)
+        leaves the status in memory, to be saved STATUS_SAVE_INTERVAL later
+        rather than at every status, and is warned of once until a save works."""
         status, generated, received = self._status
-        with self.db:
-            self.db.execute(
-                "INSERT INTO status (id, generated_at, received_at, payload) VALUES (1, ?, ?, ?) "
-                "ON CONFLICT (id) DO UPDATE SET generated_at = excluded.generated_at, "
-                "received_at = excluded.received_at, payload = excluded.payload",
-                (generated, received, json.dumps(status, ensure_ascii=False)),
-            )
-        self._status_saved_at, self._status_unsaved = now, False
+        self._status_saved_at = now
+        try:
+            with self.db:
+                self.db.execute(
+                    "INSERT INTO status (id, generated_at, received_at, payload) VALUES (1, ?, ?, ?) "
+                    "ON CONFLICT (id) DO UPDATE SET generated_at = excluded.generated_at, "
+                    "received_at = excluded.received_at, payload = excluded.payload",
+                    (generated, received, json.dumps(status, ensure_ascii=False)),
+                )
+        except sqlite3.Error as exc:
+            if not self._status_save_failed:
+                logger.warning(f"Couldn't save the status, still kept in memory: {exc}")
+            self._status_save_failed = True
+            return
+        if self._status_save_failed:
+            logger.info("Saved the status again")
+        self._status_unsaved = self._status_save_failed = False
 
     def status(self) -> Optional[Tuple[dict, float]]:
         """The status kept, and when it came."""
