@@ -104,9 +104,9 @@ With a proxied (orange-cloud) DNS record in front of Caddy, set `public_origin` 
   - Bot Fight Mode, or any challenge covering `/api/*`
 
   The first three inject or rewrite scripts, which the site's Content Security Policy blocks. A challenge page breaks the app's API calls.
-- **Caching:** don't add "Cache Everything" rules. Cloudflare's default follows the site's `Cache-Control` headers, which keep pages, scripts and API responses uncached.
+- **Caching:** don't add "Cache Everything" rules, and set **Caching → Configuration → Browser Cache TTL** to "Respect Existing Headers". Its default rewrites the scripts' and styles' `no-cache` to 4 hours; pages and API responses stay uncached either way. The page asks for its script and styles under a hash of their contents, so a change still reaches phones straight away if the TTL is left as it is.
 - **Optional extras:**
-  - A rate limiting rule on `/api/*`. An open page reads `/api/status` every 5 seconds (12 a minute), and phones on one network (e.g. a site's Wi-Fi) share an IP, so allow for several: e.g. 300 requests a minute per IP.
+  - A rate limiting rule on `/api/*`. An open page reads `/api/status` every 5 seconds (12 a minute), and phones on one network (e.g. a site's Wi-Fi) share an IP, so allow for several: e.g. 50 requests per 10 seconds per IP (the free plan's rules count over 10 seconds).
   - A WAF rule blocking `/ingest` and `/ingest/*`.
   - Allowing ports 80 and 443 on the server only from Cloudflare's IP ranges. Other Cloudflare accounts can still reach the origin through Cloudflare, bypassing your rules; Authenticated Origin Pulls with your own certificate closes that.
 
@@ -141,7 +141,7 @@ Send the link it prints. The person receiving it then does one of the following:
 
 ## The Status section
 
-The top of the app shows the monitor's latest status, from `/ingest/status` (below), to signed-in devices only. It's read every 5 seconds while the page is visible; the monitor sends it within 5 seconds of a change, so it's about 5 seconds behind.
+The top of the app shows the monitor's latest status, from `/ingest/status` (below), to signed-in devices only. It's read every 5 seconds while the page is visible, and the monitor sends it within 5 seconds of a change, so it's at most about 10 seconds behind.
 
 - **Beams:** each one's power, current and since when, with its last 24h as a line coloured by power.
 - **Instruments:** each one's run number and state, title, and counts against its target as a progress bar (`≈` marks a target the monitor estimated).
@@ -185,7 +185,7 @@ A push carries only the id, the severity, the title (the emoji and title, cut to
 
 ## The status payload (version 1)
 
-`POST /ingest/status`, signed in the same way as `/ingest`, carries the monitor's latest view: beam currents and their last 24h, each instrument's run, the MCR news and the monitor's health. Its layout is documented in `push_site/status.py`, which checks every field and bounds every list and string. The site keeps only the newest one (by `generated_at`; an older or repeated one gets 409, and one more than 60 seconds in the future 400), in memory and in its database (saved at most once a minute, and on shutdown), so a restart can serve it straight away. Signed-in devices read it from `GET /api/status` as `{"status": ..., "received_at", "age", "stale"}`, or `{"status": null}` before the first. `age` is seconds since it arrived, by the site's clock, and `stale` means it's older than 3 of its `interval_s`: the monitor is offline. Your reverse proxy must refuse `/ingest/*` as well as `/ingest` (the example Caddyfile does).
+`POST /ingest/status`, signed in the same way as `/ingest`, carries the monitor's latest view: beam currents and their last 24h, each instrument's run, the MCR news and the monitor's health. Its layout is documented in `push_site/status.py`, which checks every field and bounds every list and string. The site keeps only the newest one (by `generated_at`; an older or repeated one gets 409, and one more than 60 seconds in the future 400), in memory and in its database (saved at most once a minute, and on shutdown), so a restart can serve it straight away. Signed-in devices read it from `GET /api/status` as `{"status": ..., "received_at", "age", "stale"}`, or `{"status": null}` before the first. `age` is seconds since it arrived, by the site's clock, and `stale` means it's older than 3 of its `interval_s` (90 seconds with the monitor's 30): the monitor is offline. Your reverse proxy must refuse `/ingest/*` as well as `/ingest` (the example Caddyfile does).
 
 ## Development
 
