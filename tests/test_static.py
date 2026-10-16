@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 from push_site import __version__
@@ -65,7 +66,9 @@ async def test_page_has_a_status_section_that_polls_the_status(site):
     assert '"/api/status"' in js and "createElementNS" in js  # the sparkline is built, not inline markup
 
 
-async def test_the_assets_urls_change_with_each_release(site):
+async def test_the_assets_urls_change_with_their_contents(site):
     html = await (await site.get("/")).text()
-    assert f'href="/static/app.css?v={__version__}"' in html and f'src="/static/app.js?v={__version__}"' in html
-    assert (await site.get(f"/static/app.js?v={__version__}")).status == 200
+    assets = [await (await site.get(f"/static/{name}")).read() for name in ("app.js", "app.css")]
+    release = hashlib.sha256(b"".join(assets)).hexdigest()[:12]
+    assert f'href="/static/app.css?v={release}"' in html and f'src="/static/app.js?v={release}"' in html
+    assert (await site.get(f"/static/app.js?v={release}")).status == 200

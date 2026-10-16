@@ -7,6 +7,7 @@ its notes are copied from the matching section below.
 ## [Unreleased]
 
 - Tapping a notification opens the site in a new page when the browser won't bring an open one to the front, rather than showing nothing. On Firefox for Android a tap still only opens Firefox when Firefox wasn't already running, which is a Firefox bug ([1762032](https://bugzilla.mozilla.org/show_bug.cgi?id=1762032)).
+- The page asks for its script and styles under a hash of their contents (`app.js?v=<hash>`) rather than the release number, so phones get any change to them straight away, including one deployed between releases.
 - On the Status page, tap a run title that's cut short to show it in full, and tap it again to shorten it. It stays open as the status refreshes.
 
 ## [2.0.0] - 2026-10-16
