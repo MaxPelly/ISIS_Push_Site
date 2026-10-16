@@ -49,8 +49,7 @@ The site runs as its own user, `isis-push`, so a compromise can't act as the mon
    sudo /opt/isis-push-site/.venv/bin/pip install -e /opt/isis-push-site
    sudo chmod -R o+rX /opt/isis-push-site   # in case your umask reaches sudo: isis-push must read it
    sudo useradd --system --no-create-home --shell /usr/sbin/nologin isis-push
-   sudo groupadd --system isis-ingest
-   sudo usermod -aG isis-ingest MONITOR_USER   # the user the monitor's daemon runs as
+   sudo groupadd --system isis-ingest   # the monitor's unit joins it (SupplementaryGroups=), so no user needs to
    ```
 
 2. **Create the shared secret**, root's alone: systemd hands each service its own copy as a credential (`LoadCredential=`). The monitor's unit loads the same file. Surrounding whitespace is ignored.
@@ -220,4 +219,4 @@ Versions follow [Semantic Versioning](https://semver.org/) and are set in `push_
 1. Move the `[Unreleased]` entries in `CHANGELOG.md` into a new `## [X.Y.Z] - YYYY-MM-DD` section, and set `__version__` to `X.Y.Z`.
 2. Commit, then tag and push: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin main vX.Y.Z`.
 
-The release workflow checks the tag matches `__version__`, runs the tests and publishes a GitHub release with that section's notes (a pre-release for tags ending in `aN`, `bN` or `rcN`). Then install the tag as in [Setup](#setup) (`sudo git -C /opt/isis-push-site fetch --tags && sudo git -C /opt/isis-push-site checkout vX.Y.Z`, run its `pip install -e /opt/isis-push-site` again if the dependencies changed, and restart the site).
+The release workflow checks the tag matches `__version__`, runs the tests and publishes a GitHub release with that section's notes (a pre-release for tags ending in `aN`, `bN` or `rcN`). Then install the tag as in [Setup](#setup) (`sudo git -C /opt/isis-push-site fetch --tags && sudo git -C /opt/isis-push-site checkout vX.Y.Z`, run its `pip install -e /opt/isis-push-site` again if the dependencies changed, `sudo chmod -R o+rX /opt/isis-push-site` as in Setup, and restart the site).
