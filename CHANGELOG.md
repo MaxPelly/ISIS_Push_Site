@@ -6,6 +6,10 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+- A status the database can't save (e.g. while it's locked) is still taken: it's warned of once, kept in memory and saved a minute later, rather than retried on every status, each blocking the site for a second and getting a 503 or 500.
+- The Status section only rebuilds the rows that changed at each refresh, so a text selection elsewhere survives it, and screen readers don't re-announce it.
+- The README says to set Cloudflare's Browser Cache TTL to "Respect Existing Headers", that the Status page is up to about 10s behind, and suggests a rate limit of 50 requests per 10 seconds per IP.
+
 ## [2.0.1] - 2026-10-16
 
 For monitor 2.1.0. No config change: install the tag and restart the site.
