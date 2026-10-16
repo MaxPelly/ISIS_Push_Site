@@ -4,4 +4,4 @@ Receives HMAC-signed notifications from the monitor daemon's [PUSH] webhook
 and delivers them as Web Push messages to subscribed devices.
 """
 
-__version__ = "2.0.1"
+__version__ = "2.0.2"
