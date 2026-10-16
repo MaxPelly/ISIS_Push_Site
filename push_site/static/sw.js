@@ -23,11 +23,14 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = "/#n=" + encodeURIComponent(event.notification.data.id);
   event.waitUntil((async () => {
-    const windows = await self.clients.matchAll({ type: "window" });
-    for (const client of windows) {
-      if ("focus" in client) {
-        await client.focus();
-        return client.navigate(url).catch(() => self.clients.openWindow(url));
+    // In an open page if there is one, else (or if the browser won't navigate or focus
+    // it) in a new one, so a tap always shows the site.
+    for (const client of await self.clients.matchAll({ type: "window" })) {
+      try {
+        const page = await client.navigate(url);  // null if it has left the site
+        if (page) return await page.focus();
+      } catch (e) {
+        break;
       }
     }
     return self.clients.openWindow(url);
