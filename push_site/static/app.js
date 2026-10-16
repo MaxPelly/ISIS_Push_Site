@@ -339,9 +339,9 @@ function updateRows(container, rows, render) {
   if (container.children.length !== rows.length) container.replaceChildren(...rows.map(() => el("div")));
   [...container.children].forEach((node, i) => {
     const key = JSON.stringify(rows[i]);
-    if (node.dataset.key === key) return;
+    if (node.key === key) return;
     const row = render(...rows[i]);
-    row.dataset.key = key;
+    row.key = key;
     node.replaceWith(row);
   });
 }

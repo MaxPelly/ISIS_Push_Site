@@ -115,5 +115,21 @@ def test_a_status_that_cant_be_saved_is_still_taken_and_tried_again_a_minute_on(
     assert caplog.text.count("Couldn't save the status") == 1
     assert store._status_saved_at == 160  # tried again a minute on, not at 105
     store.close()  # still unsaved, and closed regardless
+    assert "latest status wasn't saved" in caplog.text
     with pytest.raises(sqlite3.ProgrammingError):
         store.db.execute("SELECT 1")
+
+
+def test_saving_the_status_again_once_the_database_is_writable(tmp_path, store, caplog):
+    from push_site.storage import Store
+    from tests.helpers import status
+    caplog.set_level("INFO")
+    writable, store.db = store.db, sqlite3.connect(f"file:{tmp_path / 'push.db'}?mode=ro", uri=True)
+    store.set_status(status(generated_at="2026-10-13T10:01:40+00:00"), now=100)
+    store.db = writable
+    store.set_status(status(generated_at="2026-10-13T10:03:40+00:00"), now=220)
+    assert "Saved the status again" in caplog.text
+    store.close()
+    reopened = Store(tmp_path / "push.db")
+    assert reopened.status()[0]["generated_at"] == "2026-10-13T10:03:40+00:00"
+    reopened.close()

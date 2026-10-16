@@ -102,6 +102,8 @@ class Store:
         try:
             if self._status_unsaved:
                 self._save_status(time.time())
+            if self._status_unsaved:
+                logger.warning("The latest status wasn't saved, so a restart won't serve it until the next comes")
         finally:
             self.db.close()
 
