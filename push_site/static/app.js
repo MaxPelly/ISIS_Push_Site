@@ -291,6 +291,24 @@ function beamRow(beam) {
     sparkline(beam.history));
 }
 
+// The instruments whose run titles are shown in full, so they stay so as the status refreshes.
+const openTitles = new Set();
+
+// A long run title is cut short; tapping it shows it all, and tapping again cuts it short.
+function runTitle(inst) {
+  const title = el("button", { type: "button", className: "title", textContent: inst.title, title: inst.title });
+  const show = (open) => {
+    title.classList.toggle("open", open);
+    title.setAttribute("aria-expanded", String(open));
+  };
+  show(openTitles.has(inst.name));
+  title.onclick = () => {
+    if (!openTitles.delete(inst.name)) openTitles.add(inst.name);
+    show(openTitles.has(inst.name));
+  };
+  return title;
+}
+
 function instrumentRow(inst, powers) {
   // An indeterminate bar (no value) without counts, e.g. while its IOC is down, or a target.
   const progress = inst.target > 0 && inst.counts !== null
@@ -301,7 +319,7 @@ function instrumentRow(inst, powers) {
   return el("div", { className: `instrument ${powerClass(powers[inst.beam])}` },
     el("span", { className: "name", textContent: inst.name, title: `${inst.beam} beam` }),
     el("span", { textContent: inst.run_number ? `${inst.run_number} ${state}` : state }),
-    el("span", { className: "title", textContent: inst.title, title: inst.title }),
+    runTitle(inst),
     el("span", {}, progress, el("span", { className: "counts", textContent: `${counts}${target}` })));
 }
 

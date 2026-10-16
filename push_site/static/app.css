@@ -32,7 +32,9 @@ button.link { background: none; color: #1f6feb; padding: 0; text-decoration: und
 .instrument { display: grid; grid-template-columns: 4.5rem 5.5rem 1fr 8rem; gap: 0 0.6rem; align-items: center;
   padding: 0.3rem 0; border-top: 1px solid #e7ebf0; font-size: 0.9rem; }
 .instrument .name { font-weight: 600; border-left: 4px solid var(--power); padding-left: 0.4rem; }
-.instrument .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.instrument .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: inherit; text-align: left; padding: 0; background: none; color: inherit; }
+.instrument .title.open { white-space: normal; overflow-wrap: anywhere; }
 .instrument progress { width: 100%; }
 .instrument .counts { display: block; font-size: 0.8rem; color: #57606a; }
 @media (max-width: 30rem) {  /* two lines per instrument on a narrow screen */
