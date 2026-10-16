@@ -126,6 +126,7 @@ def test_saving_the_status_again_once_the_database_is_writable(tmp_path, store, 
     caplog.set_level("INFO")
     writable, store.db = store.db, sqlite3.connect(f"file:{tmp_path / 'push.db'}?mode=ro", uri=True)
     store.set_status(status(generated_at="2026-10-13T10:01:40+00:00"), now=100)
+    store.db.close()
     store.db = writable
     store.set_status(status(generated_at="2026-10-13T10:03:40+00:00"), now=220)
     assert "Saved the status again" in caplog.text
