@@ -6,6 +6,10 @@ its notes are copied from the matching section below.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-16
+
+For monitor 2.1.0, which must be deployed with it: the site moves out of the monitor's checkout to its own install (see the README's Setup). The database and VAPID key carry over, so phones stay subscribed.
+
 - The Status section is read every 5 seconds instead of 30, for the monitor's status within 5 seconds of any change (monitor 2.1.0). The site keeps the latest status in memory and saves it to the database at most once a minute (and on shutdown) rather than on every one. Raise any Cloudflare rate limit on `/api/*` to allow for it (see the README).
 - **Breaking (deployment):** the site is installed on its own, not as the monitor's submodule: code in a root-owned `/opt/isis-push-site`, config and secret in `/etc/isis-push-site`, database and VAPID key in `/var/lib/isis-push-site` (`StateDirectory=`), the ingest socket in `/run/isis-push-site` for the `isis-ingest` group, and the secret as a systemd credential, so no ACLs. `deploy/isis-push-site.service`, `deploy/isis-push` (which now also runs `vapid`) and the README's setup follow this layout; `deploy/Caddyfile` proxies to the Docker bridge's gateway when Caddy runs in a container.
 - **Breaking:** the monitor posts to `/ingest` and `/ingest/status` over a Unix socket, `[SERVER] ingest_socket` (default `ingest.sock` beside the config), which the site makes read-writable by its group. On the public listener they no longer exist (404), so the loopback-peer and proxy-header checks are gone, and the public listener can bind wherever the reverse proxy needs, e.g. a Docker bridge address. Needs monitor 2.1.0 or later (`[PUSH] url = unix:<socket>`).
