@@ -342,7 +342,7 @@ async function loadStatus() {
   $("beams").replaceChildren(...status.beams.map(beamRow));
   const focused = document.activeElement.dataset.instrument;  // a run title, kept focused across the rebuild
   $("instruments").replaceChildren(...status.instruments.map((inst) => instrumentRow(inst, powers)));
-  if (focused) $("instruments").querySelector(`[data-instrument="${CSS.escape(focused)}"]`)?.focus();
+  if (focused) $("instruments").querySelector(`[data-instrument="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
   $("mcr").textContent = status.mcr.news;
   $("status").classList.toggle("stale", stale);
   const age = $("status-age");
